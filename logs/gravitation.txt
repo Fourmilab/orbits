@@ -1,0 +1,524 @@
+
+                            Fourmilab Gravitation
+
+                               Development Log
+
+2021 January 5
+
+Took another deep dive down a rabbit hole thanks to LSL's shoddy
+implementation of its (inadequate) single precision floating point.
+If single precision itself weren't an insult to anybody trying to
+do physical modeling, the conversion of floating point numbers to
+strings is a dagger in the back.  Suppose you have a floating point
+number like, say, 1.67e-7, which is well within the dynamic range
+and precision of a single precision IEEE float.  Now you cast the
+value to a string and print it, for example:
+    float a = 1.67e-7;
+    llOwnerSay((string) a);
+What do you get?  Well, hold on to your hat, it's:
+    0.000000
+That's right, it knows nothing of scientific notation, and shifts
+every significant digit off the end of the six decimal places it
+edits.  Now, foolishliy, try to pass that number from one script to
+another by encoding it as JSON with, say:
+    llOwnerSay(llList2Json(JSON_ARRAY, [ a ]));
+And the answer is...
+     [0.000000]
+Yes, it uses the same idiot float to string conversion and loses the
+entire mantissa.  I didn't just pull this number out of the air, by
+the way.  It happens to be the mass of the planet Mercury expressed in
+units of solar mass.  So what this means is that if you ever allow
+LSL to express a float as a string, it makes Mercury as massless as a
+photon.
+
+The only way to work around this is to integrate something like the
+LSL library float2Sci() function, which is huge, complicated, and
+excruciatingly slow, and explicitly call it wherever you need to pass
+a float as a string.  This is just hideous, but shoddy happens, and
+who're you gonna call?
+
+2021 January 6
+
+Well, the LSL Wiki recommends Float2Hex, which encodes floats as a
+C99 hexadecimal float with no loss of precision and is much faster
+than float2Sci().  Well, that may be, and it does indeed work, but
+it is still many times (around a factor 5 to 7) slower than the
+native (float) conversion.  So, if performance matters, as when
+passing values between scripts with JSON or CSV messages, the only
+practical approach is to scale your values so they don't lose
+precision, then scale them back on the receiving end.
+
+2021 January 8
+
+After a number of tests, it became evident that a model in which each
+particle autonomously evaluated the forces on it and moved accordingly
+simply wasn't going to work.
+
+2021 January 9
+
+Successive optimisation of performance of simulation.  Each test run is
+64 steps.
+
+                        Computation         Model update
+Initial state             2.1787               14.8694
+Float2Hex to (float)      0.7557               14.9567    In UPDATE message
+Mindist 0.1               0.7315                8.2216    32 moves taken
+llSetLinkPrimParamsFast   0.7994                1.4001    Eliminates 0.2 sec delay
+Separate table of velocities from mParams
+Send single message to update all masses
+Send message as CSV, not JSON
+
+Added a "Set kaboom n" facility which causes masses to self-destruct if
+an update places them greater than n AU from the deployer.  This cleans
+up runaway masses without counting on their dying due to going off
+world or onto a parcel where they aren't permitted.
+
+Added a Run on/off command, which calls timeStep off the timer, with a
+time step tickTime which is currently fixed at 0.01 second.  Since this
+is run off the timer, it is interruptable.
+
+Modified the Step command to use the Run timer mechanism, limited by
+a variable stepLimit which it sets to the specified count.  This can be
+stopped by Run off.  If you set stepLimit to zero, the previous compute
+bound code is used (temporarily) to allow running benchmarks which can
+be compared to those above, when we get back to tuning again.
+
+2021 January 10
+
+Made a galaxy disc texture for the deployer.  The image is of NGC3982,
+from:
+    https://esahubble.org/images/opo1036a/
+    https://esahubble.org/copyright/
+This as been processed into two texture images in textures/
+    NGC3982.png         512x512 single sided
+    NGC3982x2.png       1024x512 double sided
+In the latter image, the right side is flipped so when it's applied to
+a sphere as follows, it covers both sides and aligns properly.
+    Size        <1, 1, 0.05>
+    Rotation    <0, 0, 0>
+    Texture
+        Scale   <1, 1, x>
+        Repeats 1
+        Rotation 90 deg.
+    Offset      <0, 0, x>
+
+Added a "Hide run" command and support to hide the deployer while the
+simulation is running.  You can, as before, hide or show the deployer
+permanently with "Hide on/off".  A new setRun() function handles all
+state changes of "runmode".
+
+2021 January 11
+
+Modified fixArgs() to remove the {...} rotation syntax which only
+applies to Euler angle rotations in the Calculator.
+
+Modified the Mass command and REZ message handler to store and
+pass the Mass colour specification as a string, allowing our
+extended colour specifications to be passed to the mass in the INIT
+message.  An extended colour specification is:
+    <r, g, b [, alpha [ , glow ] ]>
+Note that fixArgs handles eliding any spaces within the
+specification, even though it may not look like a vector
+or rotation.
+
+Added code to the INIT message handler in Mass to handle the extended
+colour specification.  The colour specification from the Mass statement
+is parsed by the exColour() function, which returns a list containing
+the colour, alpha, and glow specifications, automatically specifying
+omitted optional parameters.  If an invalid colour specification is
+given, a list representing solid white with no glow is returned.
+
+Had another go at drawing (semi-)reasonable paths behind objects with
+a particle system.  This time, I have the masses rotate themselves in
+the direction of travel so their Z axis (the RIBBON_MASK particle
+emission direction) is oriented along the vector from their old to new
+position).  This works pretty well, but note that it uses the dreaded
+llRotBetween() and may flake out, requiring replacement by the more
+reliable library function we've used elsewhere.  Also, it's not
+optimised: there's no need to fiddle with rotating the masses unless
+we're drawing paths, but we presently do it all the time.
+
+Added the ability to trace paths by laying down temporary prims to
+form lines along the orbits.  This is done in the masses with a new
+flPlotLine() function, which is a (reasonably) general line drawing
+mechanism that works in region co-ordinates and plots with skinny
+cylinders.  This is controlled by "Set paths lines" and can be turned
+off with "Set paths off".  Particle paths continue to be available
+via "Set paths on".  The prim path mechanism basically works, but
+needs instrumentation and tuning to determine how much it costs us
+and what we can do to reduce the simulation overhead.
+
+Added computation of simulated time and display in a floating text
+legend, along with the step number, above the deployer.   The legend
+is controlled with "Set legend on/off" and is, by default, off.
+
+2021 January 12
+
+Proposal for simulated time: set the simulation rate with:
+    Set simrate n
+where n is the number of simulated years per second.  The simulator
+will strive to approximate that rate.
+    Set step n
+Set the number of simulated years per integration step.  This is the
+default as long as accelerations do not force us to use smaller steps.
+In the normal case (low accelerations), the simulation process is to
+perform R/S steps per second, to which each is allotted S/R seconds
+to complete, with a timed wait at the end of each step so the rate
+simulation rate is achieved.
+
+If high accelerations force us to a smaller step size, then we adjust
+the number of steps accordingly, and reduce the wait between steps.
+If the required number of steps take longer than we can compute at the
+requested rate, we are in a time deficit situation and should report
+this to the user.
+
+This is complicated by the fact that it's possible we may be able to
+compute steps faster than the masses can update themselves.  We need
+to be able to detect this and have the masses discard updates to avoid
+overflowing their inbound event queues.  Perhaps we should time stamp
+the updates so the masses can detect getting behind.  Unfortunately,
+we'll have to use Unix time with a resolution of only one second,
+since llGetTime() is local to each script.  An alternative is
+llGetTIimeOfDay(), but that requires handling wrapping around
+midnight.  llGetTimestamp() is right out, as it requires string bashing
+which is way too costly.
+
+2021 January 12
+
+Added code to allow a suffix to be specified after the interval in
+the Set simrate and Set steprate commands.  If no suffix is given,
+the specification is interpreted as years.  Valid suffixes are:
+        h       Hour
+        d       Day
+        w       Week (1/52 year)
+        m       Month (1/12 year)
+        y       Year (default)
+        D       Decade
+        C       Century
+
+2021 January 13
+
+Created a new platform, "Uraniborg" (named after Tycho's observatory),
+with a texture called "Starfield" which was generated by "Terranova
+Planet Maker".
+
+Created a utility to compile the Jet Propulsion Laboratory (JPL)
+DE118 (digital ephemeris) initial state vector for the solar system
+as of JD 2440400.5 (1969-06-28 00:00 UTC) into Mass commands to
+define the bodies.  This program is:
+    tools/solar_state_vector.pl
+and reads an unmodified file, tools/aconst.h containing the positions
+and velocities of the Sun, planets (including Pluto), and the Earth's
+Moon.  The other properties of the bodies (name, mass, colour, and
+radius) are taken from a table included in the program.  The output
+is a list of Mass declarations in the format which can be read directly
+by the Gravitation deployer.
+
+The DE118 state vector is expressed with position units of astronomical
+units (AU) and velocity of AU per day.  We transform velocity into our
+units of AU per year.  Further, DE118 uses a co-ordinate system in
+which the Z axis points to the Earth's north celestial pole, the X axis
+points toward the vernal equinox, and the Y axis at Right Ascension 6
+hours. The solar_state_vector.pl rotates the position and velocity
+vector around the X axis to align the Z axis with the normal to the
+ecliptic plane, transforming the co-ordinates to our heliocentric
+co-ordinates.
+
+Added an Epoch command which allows specifying the start epoch of a
+model loaded into the simulator.  This doesn't presently do anything,
+but it accepts the Epoch declaration generated from DE118 database.
+
+2021 January 14
+
+Ran the full Solar System simulation overnight, for 137,000 steps
+and 377 simulated years, with no disasters or apparent errors in
+the resulting configuration.
+
+Built a complete box for the Uraniborg space model environment.  The
+floor is unchanged, while the sides and root are double-sided versions
+of the Uraniborg platform, with the star field on both sides, and
+marked phantom, which allows objects and avatars to move through them
+unimpeded.  They, however, serve as a background when viewing or
+photographing models within the box.
+
+2021 January 23
+
+Moved generation of the floating text legend to Minor Planets to save
+memory in the main script, and because the JD editing functions and
+information about the tracked object are already there.
+
+Built Asteroid and Comet models, with the comet generating particle
+systems to showo the coma and tail, scaled to its distance from the
+Sun, and the tail oriented away from the Sun.
+
+Developed the first cut at a mass model generator for the numerical
+integrator, with the first focus on central configurations such as
+Trojan systems and rosettes.  This took a deep dive into the Perl
+Math::Quaternion and Math::Vector::Real modules, which are well
+worth mastering for this kind of work.
+
+2021 January 24
+
+Added the ability specify the number of orbit segments in the:
+    Orbits body [ nsegments ]
+command.
+
+Using the Asteroid body script as the pathfinder, added the ability to
+display a floating text legend above the body showing the most recently
+updated rectangular co-ordinates and radius vector (in AU) and the
+heliocentric latitude and longitude in degrees.  This is generated by
+updateLegend(), which is passed only the rectangular co-ordinates of
+the update: it figured out the heliocentric spherical co-ordinated from
+that and deployerPos saved from when it was rezzed. A handy rectSph()
+function is provided for this transformation, which may prove useful
+elsewhere.
+
+Display of the legend is controlled by s_legend in the settings, which
+may be toggled by touching the body.  We'll look into command and
+script control of this further down the road.
+
+Fixed parsing of Epoch statements with HH:MM[:SS] time specifications,
+Julian day specifications without fractional parts.  Added a call so
+the model is immediately updated when the Epoch is set.
+
+Added "Set real on/off/step n" to control real time, in which the
+planets display their current configuration.  The real time display is
+update every 30 second by default, but may be changed with the "step n"
+specification where n is the interval in seconds.
+
+In the process of putting together a sample of representative asteroid
+and comet orbits as a test suite, somehow or other I accidentally ended
+up with a UTF-8 character trailing one of the orbital element
+parameters.  This, when imported into Minor Planets and eventually
+passed to the ephemeris evaluator set off a Chines fire drill of
+disasters due to typos, inadequate error checking, and LSL's propensity
+for propagating NaNs through a long series of computations until it
+decides to tell you "Math error" with no more precision than the name
+of the script in which it occurred.  After several hours of debugging
+and tracing back to the source, the one-character fix became obvious,
+but in the process error checking and fault tolerance in orbital
+element specifications has been much improved, which is something I
+intended to do anyway before shipping and would have been well advised
+to do before it could have saved me a great deal of time and trouble.
+In any case, everything works now with the examples that provoked the
+original problem and further slips of the keyboard should be caught
+before they cause calamity.
+
+In order to suppport the forthcoming "true ellipse orbit" feature and
+possible future optimisations I added the ability to request ephemeris
+data for multiple dates in the LM_EP_CALC message simply by including
+multiple Julian date/fraction pairs between the body bitmask and the
+handle at the end.  The request concatenates all of the requested
+ephemerides into a message, appends the handle, and returns it to
+the requester.  This is 100% compatible with existing requests that
+only require the ephemeris for a single date.  As always, the Minor
+Planets script serves as the pathfinder for this--it will be propagated
+to the rest of the ephemeris scripts once it's fully tested here.
+
+2021 January 26
+
+Updated all of our display items which rez prims [flPlotLine(), the
+creation of ellipses for orbits, and markerBall()] to test whether
+the item they're creating is 10 metres or more from the deployer and
+do the little trick of moving the deployer there before rezzing the
+object.  A new function, flRezRegion(), which takes the same arguments
+as llRezObject(), handles this automatically.
+
+2021 January 27
+
+After several days of developing the mechanism to display elliptical
+orbits with ellipses created from scaled and properly oriented cylinder
+prims, I returned to figuring out why some minor planets ended up with
+potato-shaped orbits.  Suspecting our usual nemesis of single precision
+round-off, I developed tools to allow comparing an orbit computation
+by Solar System Live with one done by our "Orbit 10" command.  These
+tools are maintained in the .../Gravitation/orbit_debug directory
+(which is outside the Git repository).
+
+Testing with orbit of 5496 (1973 NA), whose orbit displays hideously
+and has orbital elements:
+    Asteroid "5496 (1973 NA)" t 2455540.5 a 2.434695101869629
+        e 0.6368122950745937 i 68.00432693434864 w 118.1062637269031
+        node 101.0823617074469 M 322.5808921760293 H 16.0 G 0.150
+I found that the discrepancy between the two evaluators was almost
+entirely in the B (heliocentric latitude) value, with errors as
+high as 14.7%.
+
+Well, upon further investigation, LSL's single precision is (in this
+case, and bearing in mind the hoops we jump through to cope with it)
+completely exonerated.  The problem turned out to be a fat finger in
+the expression in posMP() in Minor Planets which computes the
+heliocentric latitude from the co-ordinates returned from
+computeOrbit().  Once fixed, the discrepancy between the double
+precision Solar System Live values and those computed in LSL were no
+more than 0.01% for the test orbit.
+
+Performed an audit of all orbit tracing to validate its accuracy
+against the double precision VSOP87 in Solar System Live and to check
+whether the truncation of some of the periodic terms for the giant
+planets due to the 64 Kb script memory limit compromised accuracy in
+single precision evaluation.  Everything appears to be OK, and is more
+than adequate for proper appearance at the scales in which we render
+the model.
+
+2021 January 28
+
+Added preliminary support for plotting orbits of parabolic and
+hyperbolic orbits.  If the orbit has no semi-major axis, we plot
+outward from the periapse along both arms of the curve (positive time
+and negative time) until we reach a limit in AU set by o_aulimit which
+is currently fixed at 10 AU.
+
+Rewrote the Orbit command to integrate line and ellipse orbits and
+allow the user to control whether the prims that represent them are
+permanent or temporary.  The command is now:
+    Orbit body [ segments/ellipse [ permanent ] ]
+At the moment, temporary ellipses are not implemented, but line orbits
+may be either permanent or temporary.
+
+Added the abililty of external commands (those not implemented within
+the main script) to suspend scripts.  The code in the main script must
+set scriptSuspend as usual, but when the external command is done, it
+can send a LM_CP_RESUME link message which will call scriptResume()
+and get the script running again.  Initially implemented this for the
+Orbit command, allowing development of a minor planet element parsing
+and orbit display test script, "Script: Orbits".
+
+Meeus algorithms (including constants) are available for Go at:
+    https://godoc.org/github.com/soniakeys/meeus/v3
+
+Integrated the multiple ephemeris request logic for LM_EP_CALC into
+Ephemeris: Mars, which will serve as the pathfinder for ellipse fitting
+to planets.  The code is essentially identical to that developed and
+tested in Minor Planets, and will be integrated into the other planet
+ephemeris calculators once it's checked out on Mars.
+
+2021 January 29
+
+Propagated the multiple request ephemeris code into the ephemeris
+evaluators for all planets and tested them all with the "orbit ..
+ellipse" command.  Everything worked except Pluto, which awaits an
+overhaul to use the JPL orbital element definition instead of the Meeus
+periodic term solution.
+
+Decided to break with my tradition of not starting Git management of
+the project until declaring a release candidate.  This project has
+become sufficiently sprawling and complicated that maintaining an audit
+trail of changes and being able to examine code prior to major
+re-structurings justifies the additional overhead at this point. So I
+created the repository:
+    git init
+
+
+
+
+
+Remove unused items from ellipse generation messages.
+
+
+
+
+
+Merge mode for collisions.  Goes "blop", sums mass and
+momentum vectors, averages colours, and adjusts radius
+based upon cube root of added mass.
+
+Klemperer rosette generator, with or without a central body.
+
+Galactic centre model, based upon 2008 orbital elements.
+
+Adjust sit position based upon rotation of bodies.
+
+Only rotate body if we're generating paths with particles.
+
+Send a single message to update the positions of all bodies
+as opposed to one message per body.
+
+Optimise paths via lines.  Only generate a line if the motion is
+greater than a certain length or, perhaps, if the angle has
+changed more than a threshold.
+
+Computation of simulated time, define steps using it.  We should
+attempt to simulate a fixed amount of *simulated time* in each clock
+tick, regardless of how many integration steps it takes to do so,
+depending upon the adaptive step size calculation.
+
+Draw paths with plotLine(<from>, <to>, <colour>, diameter), creating
+temp objects.
+
+Fix paths alignment.
+
+Specify orbits by orbital elements, derive r and rdot.
+
+Model of comet with particle system, orient so tail points away from Sun.
+
+Model of asteroid (Phobos texture map?).
+
+Plot orbits as tori deformed into ellipses, oriented in space according
+to the orbital elements.  Re-parameterise orbit into centre and local
+Z axis vector.
+    Step 1: From semi-major axis and eccentricity, compute the major
+    and minor axes and create cylinder or torus with the specified
+    dimensions.
+
+    Step 2: From the semi-major axis and eccentricity, compute a
+    focus.  Translate the ellipse so that the focus aligns with
+    the central mass.  At this point, the ellipse will be
+    coplanar with the ecliptic.
+
+    Step 3: From the argument of the periapse. rotate the ellipse
+    around the focus so that the periapse aligns with the
+    perihelion.
+
+    Alternative approach (maybe easier since all rotations are
+    around centre).
+        1.  Find points of periapse and apoapse.  Bisect them,
+            This is the centre of the ellipse in space.  Create
+            an ellipse there with the proper eccentricity in
+            the plane of the ecliptic, aligned with the X and Y axes.
+                Key formulae:
+                    a = semimajor axis
+                    e = eccentricity
+                    b = semiminor axis = a * sqrt(1 - (e * e))
+                    c = focus (distance from centre, location of
+                        central mass) = a * e
+                    apoapsis = a * (1 + e)
+                    periapsis = a * (1 - e)
+
+        2.  Rotate the ellipse around the ecliptic Z axis until
+            its major axis is aligned with the vector from the
+            periapse and apoapse.  This should handle the argument
+            of the perihelion.
+
+        3.  Rotate the ellipse around its (rotated) minor axis until it
+            passes through the periapse and apoapse).  At this point it
+            should pass through the periapse and apoapse at the correct
+            points.
+
+        4.  Now all that remains is to rotate the ellipse one more
+            around its major axis to the specified inclination,
+            preserving the periapse and apoapse.
+
+
+Handle propagating orbital period for comets and asteroids to
+Orbits, and handle plotting parabolic, hyperbolic, and extremely
+eccentric elliptical orbits.
+
+Plotting orbits: adaptive segment length and number, handle 10 metre
+rez limit by jumping around.
+
+Scale particle params with overall scale of comet?
+
+Propagate legend display to other bodies.
+
+Set legend on/off [ body... / all ]
+
+Body legend display: save last update pos, use to show legend immediately
+when touched.
+
+Ellipse generation mis-handles final rotation when normal to ellipse
+and co-vertex are on opposite sides of the ellipse plane after first
+rotation.
+
+Suspend and resume script on long commands such as Orbit and Ellipse.
+
