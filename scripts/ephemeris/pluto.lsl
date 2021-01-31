@@ -7,116 +7,26 @@
             |_|
     */
 
-    /*  Each periodic term entry contains the factors by which the
-        three fundamental angles are multiplied to form the alpha
-        value.  The sine and cosine of alpha are combined with
-        longitude, latitude, and radius values from the terms to
-        sum to the final position.
-
-        In order to preserve precision and in the interest of
-        efficiency, we store all of these values as integers,
-        with the longitude and latitude scaled by 1e-6 and the
-        radius scaled by 1e-7.  */
-
-    list plutoTerms = [
-        /* 1*/ 0, 0, 1, -19798886, 19848454, -5453098, -14974876, 66867334, 68955876,
-        /* 2*/ 0, 0, 2, 897499, -4955707, 3527363, 1672673, -11826086, -333765,
-        /* 3*/ 0, 0, 3, 610820, 1210521, -1050939, 327763, 1593657, -1439953,
-        /* 4*/ 0, 0, 4, -341639, -189719, 178691, -291925, -18948, 482443,
-        /* 5*/ 0, 0, 5, 129027, -34863, 18763, 100448, -66634, -85576,
-        /* 6*/ 0, 0, 6, -38215, 31061, -30594, -25838, 30841, -5765,
-        /* 7*/ 0, 1, -1, 20349, -9886, 4965, 11263, -6140, 22254,
-        /* 8*/ 0, 1, 0, -4045, -4904, 310, -132, 4434, 4443,
-        /* 9*/ 0, 1, 1, -5885, -3238, 2036, -947, -1518, 641,
-        /*10*/ 0, 1, 2, -3812, 3011, -2, -674, -5, 792,
-        /*11*/ 0, 1, 3, -601, 3468, -329, -563, 518, 518,
-        /*12*/ 0, 2, -2, 1237, 463, -64, 39, -13, -221,
-        /*13*/ 0, 2, -1, 1086, -911, -94, 210, 837, -494,
-        /*14*/ 0, 2, 0, 595, -1229, -8, -160, -281, 616,
-        /*15*/ 1, -1, 0, 2484, -485, -177, 259, 260, -395,
-        /*16*/ 1, -1, 1, 839, -1414, 17, 234, -191, -396,
-        /*17*/ 1, 0, -3, -964, 1059, 582, -285, -3218, 370,
-        /*18*/ 1, 0, -2, -2303, -1038, -298, 692, 8019, -7869,
-        /*19*/ 1, 0, -1, 7049, 747, 157, 201, 105, 45637,
-        /*20*/ 1, 0, 0, 1179, -358, 304, 825, 8623, 8444,
-        /*21*/ 1, 0, 1, 393, -63, -124, -29, -896, -801,
-        /*22*/ 1, 0, 2, 111, -268, 15, 8, 208, -122,
-        /*23*/ 1, 0, 3, -52, -154, 7, 15, -133, 65,
-        /*24*/ 1, 0, 4, -78, -30, 2, 2, -16,
-        /*25*/ 1, 1, -3, -34, -26, 4, 2, -22, 7,
-        /*26*/ 1, 1, -2, -43, 1, 3, 0, -8, 16,
-        /*27*/ 1, 1, -1, -15, 21, 1, -1, 2, 9,
-        /*28*/ 1, 1, 0, -1, 15, 0, -2, 12, 5,
-        /*29*/ 1, 1, 1, 4, 7, 1, 0, 1, -3,
-        /*30*/ 1, 1, 3, 1, 5, 1, -1, 1, 0,
-        /*31*/ 2, 0, -6, 8, 3, -2, -3, 9, 5,
-        /*32*/ 2, 0, -5, -3, 6, 1, 2, 2, -1,
-        /*33*/ 2, 0, -4, 6, -13, -8, 2, 14, 10,
-        /*34*/ 2, 0, -3, 10, 22, 10, -7, -65, 12,
-        /*35*/ 2, 0, -2, -57, -32, 0, 21, 126, -233,
-        /*36*/ 2, 0, -1, 157, -46, 8, 5, 270, 1068,
-        /*37*/ 2, 0, 0, 12, -18, 13, 16, 254, 155,
-        /*38*/ 2, 0, 1, -4, 8, -2, -3, -26, -2,
-        /*39*/ 2, 0, 2, -5, 0, 0, 0, 7, 0,
-        /*40*/ 2, 0, 3, 3, 4, 0, 1, -11, 4,
-        /*41*/ 3, 0, -2, -1, -1, 0, 1, 4, -14,
-        /*42*/ 3, 0, -1, 6, -3, 0, 0, 18, 35,
-        /*43*/ 3, 0, 0, -1, -2, 0, 1, 13, 3
-    ];
-
     integer J2000 = 2451545;            // Julian day of J2000 epoch
     float JulianCentury = 36525.0;      // Days in Julian century
 
-    list posPluto(integer jd, float jdf) {
-
-        /* This expansion for Pluto's position is valid only for years
-           between 1885 and 2099.  If the date given is outside that
-           range, return zero for the position.  */
-
-        if ((jd < 2409543.0) || (jd >= 2488070.0)) {
-            return [ 0, 0, 0 ];
-        }
-
-        float t = ((jd - J2000) / JulianCentury) + (jdf / JulianCentury);
-
-        float j = DEG_TO_RAD * ( 34.35 + (3034.9057 * t));
-        float s = DEG_TO_RAD * ( 50.08 + (1222.1138 * t));
-        float p = DEG_TO_RAD * (238.96 +  (144.9600 * t));
-
-        //  Initial components of position before periodic terms
-
-        float cl = 238.956785 + 144.96 * t;
-        float cb = -3.908202;
-        float cr = 40.7247248;
-
-        integer i;
-        integer n = llGetListLength(plutoTerms);
-
-        float lbscale = 0.000001;
-        float rscale = 0.0000001;
-
-        for (i = 0; i < n; i += 9) {
-            float alpha = (llList2Integer(plutoTerms, i) * j) +
-                          (llList2Integer(plutoTerms, i + 1) * s) +
-                          (llList2Integer(plutoTerms, i + 2) * p);
-            float salpha = llSin(alpha);
-            float calpha = llCos(alpha);
-            cl += (llList2Integer(plutoTerms, i + 3) * salpha * lbscale) +
-                  (llList2Integer(plutoTerms, i + 4) * calpha * lbscale);
-            cb += (llList2Integer(plutoTerms, i + 5) * salpha * lbscale) +
-                  (llList2Integer(plutoTerms, i + 6) * calpha * lbscale);
-            cr += (llList2Integer(plutoTerms, i + 7) * salpha * rscale) +
-                  (llList2Integer(plutoTerms, i + 8) * calpha * rscale);
-        }
-
-        return [ fixangr(DEG_TO_RAD * cl), fixangr(DEG_TO_RAD * cb), cr ];
-    }
-
-    //  fixangr  --  Range reduce an angle in radians
-
-    float fixangr(float a) {
-        return a - (TWO_PI * (llFloor(a / TWO_PI)));
-    }
+    list s_elem = [
+        "Pluto",                // 0    Name
+        2454000, 0.5,           // 1,2  epoch [ jd, jdf ]
+        39.4450697257358,       // 3    a (semi-major axis)
+        0.250248713478499,      // 4    e (eccentricity)
+        17.089000919562,        // 5    i (inclination)
+        112.5971416774872,      // 6    ῶ (argument of periapse)
+        110.3769579554089,      // 7    Ω (longitude of ascending node)
+        25.24718971218841,      // 8    M (mean anomaly)
+        -0.4,                   // 9    H (magnitude)
+        0.15,                   // 10   G (magnitude slope)
+        0, 0.0,                 // 11,12 Tp (time of perhelion)
+        0.0,                    // 13   q (periapse distance)
+        0.0,                    // 14   n (mean motion)
+        0.0,                    // 15   P (orbital period)
+        0.0                     // 16   Q (apoapse distance)
+    ];
 
     integer BODY = 9;                   // Our body number
 
@@ -124,8 +34,264 @@
     integer LM_EP_RESULT = 432;         // Ephemeris calculation result
     integer LM_EP_STAT = 433;           // Print memory status
 
+    //  sgn  --  Return sign of argument
+
+    integer sgn(float v) {
+        if (v == 0) {
+            return 0;
+        } else if (v > 0) {
+            return 1;
+        }
+        return -1;
+    }
+
+    /*  gKepler  --  High-precision solution to the equation
+                     of Kepler for eccentricities between
+                     0 and extreme hyperbolic orbits.  Arguments
+                     are the eccentricity, time since periapse,
+                     and distance at periapse.  A list is returned
+                     containing the true anomaly v (radians) and
+                     the radius vector to the central body r (AU).  */
+
+    list gKepler(float e, float t, float q) {
+//tawk("gKepler e " + (string) e + "  t " + (string) t + "  q " + (string) q);
+        float f;
+        float x;
+        float d;
+        float m1;
+        integer i;
+
+        float v;
+        float r;
+        float K = 0.01720209895;        // Gaussian gravitational constant
+
+        /*  Solution by binary search by Roger W. Sinnott, Sky and Telescope,
+            Vol. 70, page 159 (August 1985).  This is presented as the
+            "Third Method" in chapter 30 of Meeus, "Astronomical Algorithms",
+            2nd ed.  We use this for all eccentricities less than 0.98.  */
+
+        float m;
+        float a1;
+        float ev;
+
+        a1 = q / (1 - e);
+        m = K * t * llPow(a1, -1.5);
+
+        f = sgn(m);
+        m = llFabs(m) / (2 * PI);
+        m = (m - (llFloor(m))) * 2 * PI * f;
+        if (m < 0) {
+            m += 2 * PI;
+        }
+        f = 1;
+        if (m > PI) {
+            f = -1;
+        }
+        if (m > PI) {
+            m = (2 * PI) - m;
+        }
+        x = PI / 2;
+        d = PI / 4;
+        for (i = 0; i < 53; i++) {
+            m1 = x - e * llSin(x);
+            x = x + sgn(m - m1) * d;
+            d /= 2;
+        }
+        x *= f;
+        ev = llSqrt((1 + e) / (1 - e));
+        r = a1 * (1 - e * llCos(x));
+        x = 2 * llAtan2(ev * llSin(x / 2), llCos(x / 2));
+
+        if (x < 0) {
+            x += TWO_PI;
+        }
+        v = x;
+        return [ v, r ];
+    }
+
+    /*  obliqeq  --  Calculate the obliquity of the ecliptic for
+                     a given Julian date.  This uses Laskar's
+                     tenth-degree polynomial fit (J. Laskar,
+                     Astronomy and Astrophysics, Vol. 157, page
+                     68 [1986]) which is accurate to within 0.01
+                     arc second between AD 1000 and AD 3000, and
+                     within a few seconds of arc for +/-10000
+                     years around AD 2000.  If we're outside the
+                     range in which this fit is valid (deep
+                     time) we simply return the J2000 value of
+                     the obliquity, which happens to be almost
+                     precisely the mean.  */
+
+    float obliqeq(float jd, float jdf) {
+        /*  These terms were originally specified in arc
+            seconds.  In the interest of efficiency, we convert
+            them to degrees by dividing by 3600 and round to
+            nine significant digits, which is the maximum
+            precision of the single-precision floats used by
+            LSL.  */
+        list oterms = [
+            -1.30025833,
+            -0.000430555556,
+             0.555347222,
+            -0.0142722222,
+            -0.0693527778,
+            -0.0108472222,
+             0.00197777778,
+             0.00774166667,
+             0.00160833333,
+             0.000680555556
+        ];
+
+        //  Again, we evaluate a number specified as 23d26'21".448 as degrees
+        float eps = 23.4392911;
+        float u;
+        float v;
+        integer i;
+
+        v = u = ((jd - J2000) / (JulianCentury * 100)) + (jdf / (JulianCentury * 100));
+
+        if (llFabs(u) < 1.0) {
+            for (i = 0; i < 10; i++) {
+                eps += llList2Float(oterms, i) * v;
+                v *= u;
+            }
+        }
+        return eps;
+    }
+
+    /*  computeOrbit  --  Compute heliocentric rectangular co-ordinates
+                          of object from orbital elements.  */
+
+    vector computeOrbit(list elements, list jdl) {
+        float e = obliqeq(llList2Integer(jdl, 0), llList2Float(jdl, 1)) * DEG_TO_RAD;
+        float w = llList2Float(elements, 6) * DEG_TO_RAD;
+        float n = llList2Float(elements, 7) * DEG_TO_RAD;
+        float i = llList2Float(elements, 5) * DEG_TO_RAD;
+//tawk("ComputeOrbit  e " + (string) (RAD_TO_DEG * e) + "  w " + (string) (RAD_TO_DEG * w) + "  n " + (string) (RAD_TO_DEG * n) + "  i " + (string) (RAD_TO_DEG * i));
+
+        float w1 = llSin(w);
+        float w2 = llCos(w);
+        float n1 = llSin(n);
+        float n2 = llCos(n);
+        float i1 = llSin(i);
+        float i2 = llCos(i);
+        float e1 = llSin(e);
+        float e2 = llCos(e);
+
+        float p7 = (w2 * n2) - (w1 * n1 * i2);
+        float p8 = (((w2 * n1) + (w1 * n2 * i2)) * e2) - (w1 * i1 * e1);
+        float p9 = (((w2 * n1) + (w1 * n2 * i2)) * e1) + (w1 * i1 * e2);
+        float q7 = (-w1 * n2) - (w2 * n1 * i2);
+        float q8 = (((-w1 * n1) + (w2 * n2 * i2)) * e2) - (w2 * i1 * e1);
+        float q9 = (((-w1 * n1) + (w2 * n2 * i2)) * e1) + (w2 * i1 * e2);
+
+        integer dti = llList2Integer(jdl, 0) - llList2Integer(elements, 11);
+        float dtf = dti + (llList2Float(jdl, 1) - llList2Float(elements, 12));
+        list k = gKepler(llList2Float(elements, 4), dtf,
+                         llList2Float(elements, 13));
+        if (k != [ ]) {
+            float v = llList2Float(k, 0);
+            float r = llList2Float(k, 1);
+            float x1 = r * llCos(v);
+            float y1 = r * llSin(v);
+
+            return <  (p7 * x1) + (q7 * y1),
+                      (p8 * x1) + (q8 * y1),
+                      (p9 * x1) + (q9 * y1) >;
+        }
+        //  Kepler's equation solver failed
+        return ZERO_VECTOR;
+    }
+
+    //  posMP  --  Compute position of currently-tracked minor planet
+
+    list posMP(integer jd, float jdf) {
+        vector pos = computeOrbit(s_elem, [ jd, jdf ]);
+//tawk("Heliocentric position: " + (string) pos + "  rv " + (string) llVecMag(pos));
+        float x = pos.x;
+        float y = pos.y;
+        float z = pos.z;
+        float obelix = obliqeq(jd, jdf) * DEG_TO_RAD;
+        float hra = llAtan2(y, x);
+        float hdec = llAtan2(z, llSqrt((x * x) + (y * y)));
+        float hrv = llSqrt((x * x) + (y * y) + (z * z));
+        float hlong = llAtan2((llSin(hra) * llCos(obelix)) +
+                                (llTan(hdec) * llSin(obelix)), llCos(hra));
+        float hlat = llAsin(llSin(hdec) * llCos(obelix) -
+                                (llCos(hdec) * llSin(obelix) * llSin(hra)));
+//tawk("pos " + (string) pos + " obelix " + (string) obelix + " hra " + (string) hra +
+//    " hdec " + (string) hdec + " hrv " + (string) hrv + " hlong " + (string) hlong +
+//    " hlat " + (string) hlat);
+        return [ hlong, hlat, hrv ];
+    }
+
+    //  dumpOrbitalElements  --  Dump orbital elements
+
+    dumpOrbitalElements(list e) {
+        llOwnerSay(llList2String(e, 0) + "\n" +
+            "  Epoch " + (string) llList2Integer(e, 1) + " + " +
+                         (string) llList2Float(e, 2) + "\n" +
+            "  a " + (string) llList2Float(e, 3) + "\n" +
+            "  e " + (string) llList2Float(e, 4) + "\n" +
+            "  i " + (string) llList2Float(e, 5) + "\n" +
+            "  ῶ " + (string) llList2Float(e, 6) + "\n" +
+            "  Ω " + (string) llList2Float(e, 7) + "\n" +
+            "  M " + (string) llList2Float(e, 8) + "\n" +
+            "  H " + (string) llList2Float(e, 9) + "\n" +
+            "  G " + (string) llList2Float(e, 10) + "\n" +
+            "  Tp " + (string) llList2Integer(e, 11) + " + " +
+                      (string) llList2Float(e, 12) + "\n" +
+            "  q " + (string) llList2Float(e, 13) + "\n" +
+            "  n " + (string) llList2Float(e, 14) + "\n" +
+            "  P " + (string) llList2Float(e, 15) + "\n" +
+            "  Q " + (string) llList2Float(e, 16)
+        );
+    }
+
     default {
         state_entry() {
+            /*  The following code synthesises the complete
+                set of orbital elements from those we've
+                specified in the static declaration of s_elem
+                at the top, taken from the JPL Small-Body
+                Database.  This is adapted from the code in the
+                parseOrbitalElements() function of Minor Planets,
+                with unneeded generality removed.  */
+
+            float m_a = llList2Float(s_elem, 3);
+            float m_e = llList2Float(s_elem, 4);
+            float m_M = llList2Float(s_elem, 8);
+
+            /*  Compute the periapse date from the epoch,
+                semi-major axis, and mean anomaly.  */
+            float peridelta = llSqrt(m_a * m_a * m_a) * m_M * (365.2422 / 360);
+            integer pdi = llFloor(peridelta);
+            peridelta -= pdi;
+            integer pjd = llList2Integer(s_elem, 1) - pdi;
+            float pjdf = llList2Float(s_elem, 2) - peridelta;
+            while (pjdf < 0) {
+                pjdf += 1;
+                pjd--;
+            }
+            s_elem = llListReplaceList(s_elem, [ pjd, pjdf ], 11, 12);
+//                m_Tp = [ pjd, pjdf ];
+
+            /*  Compute periapse distance from semi_major axis
+                and eccentricity.  */
+            s_elem = llListReplaceList(s_elem, [ m_a - (m_a * m_e) ], 13, 13);
+
+            /*  Compute mean motion.  The magic number in the
+                numerator is the Gaussian gravitational constant
+                k = 0.01720209895 radians/day converted to degrees.
+                The apoapse distance is computed from the semi-major
+                axis and eccentricity and is, of course, only defined
+                for elliptical orbits.  */
+            float m_n = 0.9856076686 / (m_a * llSqrt(m_a));
+//            m_P = 360 / m_n;
+//            m_Q = (1 + m_e) * m_a;
+            s_elem = llListReplaceList(s_elem, [ 360 / m_n, (1 + m_e) * m_a ], 15, 16);
+
+dumpOrbitalElements(s_elem);
         }
 
         link_message(integer sender, integer num, string str, key id) {
@@ -140,8 +306,8 @@
                     integer i;
 
                     for (i = 1; (i + 1) < argn; i += 2) {
-                        eph += posPluto(llList2Integer(args, i),
-                                        llList2Float(args, i + 1));
+                        eph += posMP(llList2Integer(args, i),
+                                     llList2Float(args, i + 1));
                     }
                     integer handle = llList2Integer(args, i);
                     llMessageLinked(LINK_THIS, LM_EP_RESULT,
