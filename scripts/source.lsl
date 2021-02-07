@@ -1,12 +1,12 @@
     /*
-                      Numerical Integration Mass
+                        Galactic Centre Source
 
                            by John Walker
 
-        This script controls masses in a Fourmilab Orbits Numerical
-        Integration simulation.  The masses simply respond to
-        position updates from the Numerical Integration script.  They
-        have no autonomy: they only go where ordered.
+        This script controls Galactic Centre sources in Fourmilab
+        Orbits.  These represent masses orbiting the central black
+        hole at Sagittarius A*.  The masses are entirely controlled
+        by the orbital position evaluator and have no autonomy.
 
     */
 
@@ -25,8 +25,11 @@
     float m_glow;                       // Glow (0 none, 1 intense)
     float m_radius;                     // Mean radius
 
+    string m_upkey;                     // Update key for bulk updates
+    integer m_upkeyL;                   // Update key length
+
     //  Settings communicated by deployer
-    float s_kaboom = 50;                // Self destruct if this far (AU) from deployer
+//    float s_kaboom = 50;                // Self destruct if this far (AU) from deployer
     float s_auscale = 0.2;              // Astronomical unit scale
     float s_radscale = 0.0000025;       // Radius scale
     integer s_trails = TRUE;            // Plot orbital trails ?
@@ -37,8 +40,7 @@
     string ypres = "B?+:$$";            // It's pronounced "Wipers"
     string Collision = "Balloon Pop";   // Explosion sound clip
 
-    vector initialPos;                  // Initial mass position
-    vector deployerPos;                 // Deployer position (centre of cage)
+    vector deployerPos;                 // Deployer position
 
     float startTime;                    // Time we were hatched
 
@@ -90,6 +92,20 @@
 
         llSleep(1);         // Need to wait to allow particles and sound to play
         llDie();
+    }
+
+    /*  siuf  --  Base64 encoded integer to float
+                  Designed and implemented by Strife Onizuka:
+                    http://wiki.secondlife.com/wiki/User:Strife_Onizuka/Float_Functions  */
+
+    float siuf(string b) {
+        integer a = llBase64ToInteger(b);
+        if (0x7F800000 & ~a) {
+            return llPow(2, (a | !a) + 0xffffff6a) *
+                      (((!!(a = (0xff & (a >> 23)))) * 0x800000) |
+                       (a & 0x7fffff)) * (1 | (a >> 31));
+        }
+        return (!(a & 0x7FFFFF)) * (float) "inf" * ((a >> 31) | 1);
     }
 
     /*  flPlotLine  --  Plot a line using a cylinder prim.  We
@@ -157,6 +173,7 @@
             }
         }
     }
+    /* END TRACE */
 
     /*  exColour  --  Parse an extended colour specification:
                         <r, g, b [, alpha [ , glow ] ]>  */
@@ -184,6 +201,35 @@
         return [ <1, 1, 1>, 1, 0 ];     // Default: solid white, no glow
     }
 
+    //  updatePosition  --  Update position of object
+
+    updatePosition(vector npos) {
+        vector p = llGetPos();
+        float dist = llVecDist(p, npos);
+        if (s_trace) {
+            tawk(m_name + ": Update pos from " + (string) p + " to " + (string) npos +
+        " dist " + (string) dist);
+        }
+/*  Kaboom now handled in the deployer
+        if ((s_kaboom > 0) &&
+            ((llVecDist(npos, deployerPos) / s_auscale) > s_kaboom)) {
+            kaboom();
+            return;
+        }
+*/
+        if (dist >= s_mindist) {
+            llSetLinkPrimitiveParamsFast(LINK_THIS,
+                [ PRIM_POSITION, npos ]);
+            if (paths) {
+                llSetLinkPrimitiveParamsFast(LINK_THIS,
+                [ PRIM_ROTATION, llRotBetween(<0, 0, 1>, (npos - p)) ]);
+            }
+            if (s_trails) {
+                flPlotLine(p, npos, m_colour, s_pwidth);
+            }
+        }
+    }
+
     default {
 
         state_entry() {
@@ -194,11 +240,15 @@
             initState = 0;
 
             //  If start_param is zero, this is a simple manual rez
-            if (start_param > 0) {
+            if (start_param != 0) {
                 m_index = start_param;
 
+                //  Build search string for update key from m_index
+                m_upkey = "{" + (string) m_index + "}";
+                m_upkeyL = llStringLength(m_upkey);
+
                 deployer = llList2Key(llGetObjectDetails(llGetKey(),
-                                [ OBJECT_REZZER_KEY ]), 0);
+                            [ OBJECT_REZZER_KEY ]), 0);
 
                 //  Set sit target
 
@@ -211,7 +261,7 @@
 
                 //  Inform the deployer that we are now listening
                 llRegionSayTo(deployer, massChannel,
-                    llList2Json(JSON_ARRAY, [ "REZ", m_index ]));
+                    llList2Json(JSON_ARRAY, [ "SOURCED", m_index ]));
 
                 initState = 1;          // Waiting for SETTINGS and INIT
             }
@@ -220,9 +270,36 @@
         //  The listen event handles message from the deployer and other masses
 
         listen(integer channel, string name, key id, string message) {
-//llOwnerSay("Mass channel " + (string) channel + " id " + (string) id +  " message " + message);
+//llOwnerSay("Source channel " + (string) channel + " id " + (string) id +  " message " + message);
 
             if (channel == massChannel) {
+
+                /*  Check for expedited bulk update message.  The Galactic Centre
+                    simulator sends highly compacted messages containing the
+                    positions for as many sources as will fit in a 1024 character
+                    llRegionSay() packet.  Each contains the numbers of sources
+                    which it is updating, in a form that can be found by a single
+                    string search, and the X Y and Z region co-ordinates encoded
+                    as a six-character base64 string with fuis(). */
+                if (llGetSubString(message, 1, 2) == ":{") {
+                    integer p = llSubStringIndex(message, m_upkey);
+                    if (p > 0) {
+                        vector npos = <
+                            siuf(llGetSubString(message, p + m_upkeyL, p + m_upkeyL + 5)),
+                            siuf(llGetSubString(message, p + m_upkeyL + 6, p + m_upkeyL + 11)),
+                            siuf(llGetSubString(message, p + m_upkeyL + 12, p + m_upkeyL + 17)) >;
+                        updatePosition(npos);
+                        //  If this is the last source, report updates complete
+                        if (((p + m_upkeyL + 18) >= llStringLength(message)) &&
+                            (llGetSubString(message, 0, 0) == "V")) {
+                            llRegionSayTo(id, massChannel,
+                                "[\"UPDATED\"," + (string) m_index + "]");
+//llOwnerSay("Sent UPDATED from " + (string) m_index + " at " + (string) (p + m_upkeyL + 18));
+                        }
+                    }
+                    return;
+                }
+
                 list msg = llJson2List(message);
                 string ccmd = llList2String(msg, 0);
 
@@ -247,8 +324,9 @@
                         llDie();
 
                     //  COLLIDE  --  Handle collision with another mass
+                    //  KABOOM  --  Went out of range of deployer's control
 
-                    } else if (ccmd == "COLLIDE") {
+                    } else if ((ccmd == "COLLIDE") || (ccmd == "KABOOM")) {
                         kaboom();
 
                     //  LIST  --  List mass information
@@ -260,7 +338,7 @@
                             integer mFree = llGetFreeMemory();
                             integer mUsed = llGetUsedMemory();
 
-                            tawk("Mass " + (string) m_index +
+                            tawk("Source " + (string) m_index +
                                  "  Name: " + m_name +
                                  "  Mass: " + (string) m_mass +
                                  "  Radius: " + (string) m_radius +
@@ -309,7 +387,7 @@
                         if ((bn == 0) || (bn == m_index)) {
                             paths = llList2Integer(msg, 2);
                             s_trace = llList2Integer(msg, 3);
-                            s_kaboom = llList2Float(msg, 4);
+//                            s_kaboom = llList2Float(msg, 4);
                             s_auscale = llList2Float(msg, 5);
                             s_radscale = llList2Float(msg, 6);
                             s_trails = llList2Integer(msg, 7);
@@ -354,33 +432,6 @@
                                 ]);
                         } else {
                             llParticleSystem([ ]);
-                        }
-
-                    //  UPDATE  --  Update mass position
-
-                    } else if (ccmd == "UPDATE") {
-                        vector p = llGetPos();
-                        vector npos = (vector) llList2String(msg, 2);
-                        float dist = llVecDist(p, npos);
-                        if (s_trace) {
-                            tawk(m_name + ": Update pos from " + (string) p + " to " + (string) npos +
-                                " dist " + (string) dist);
-                        }
-                        if ((s_kaboom > 0) &&
-                            ((llVecDist(npos, deployerPos) / s_auscale) > s_kaboom)) {
-                            kaboom();
-                            return;
-                        }
-                        if (dist >= s_mindist) {
-                            llSetLinkPrimitiveParamsFast(LINK_THIS,
-                                [ PRIM_POSITION, npos ]);
-                            if (paths) {
-                                llSetLinkPrimitiveParamsFast(LINK_THIS,
-                                    [ PRIM_ROTATION, llRotBetween(<0, 0, 1>, (npos - p)) ]);
-                            }
-                            if (s_trails) {
-                                flPlotLine(p, npos, m_colour, s_pwidth);
-                            }
                         }
                     }
                 }
