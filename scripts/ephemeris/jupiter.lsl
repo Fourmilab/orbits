@@ -806,7 +806,7 @@
 
     integer LM_EP_CALC = 431;           // Calculate ephemeris
     integer LM_EP_RESULT = 432;         // Ephemeris calculation result
-    integer LM_EP_STAT = 433;           // Print memory status
+//    integer LM_EP_STAT = 433;           // Print memory status
 
     default {
         state_entry() {
@@ -835,6 +835,7 @@
 
             //  LM_EP_STAT (433): Print memory status
 
+/*
             } else if (num == LM_EP_STAT) {
                 integer mFree = llGetFreeMemory();
                 integer mUsed = llGetUsedMemory();
@@ -843,6 +844,7 @@
                         "  Used: " + (string) mUsed + " (" +
                         (string) ((integer) llRound((mUsed * 100.0) / (mUsed + mFree))) + "%)"
                 );
+*/
             }
         }
     }

@@ -448,7 +448,6 @@
         float tau2 = tau * tau;
         float tau3 = tau2 * tau;
         float tau4 = tau3 * tau;
-        float tau5 = tau4 * tau;
 
         float L = 0;
         float B = 0;
@@ -462,7 +461,7 @@
 
         n = llGetListLength(UranusTermL0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermL0, i) *
                 llCos(llList2Float(UranusTermL0, i + 1) +
                       llList2Float(UranusTermL0, i + 2) * tau);
@@ -473,7 +472,7 @@
 
         n = llGetListLength(UranusTermL1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermL1, i) *
                 llCos(llList2Float(UranusTermL1, i + 1) +
                       llList2Float(UranusTermL1, i + 2) * tau);
@@ -484,7 +483,7 @@
 
         n = llGetListLength(UranusTermL2);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermL2, i) *
                 llCos(llList2Float(UranusTermL2, i + 1) +
                       llList2Float(UranusTermL2, i + 2) * tau);
@@ -495,7 +494,7 @@
 
         n = llGetListLength(UranusTermL3);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermL3, i) *
                 llCos(llList2Float(UranusTermL3, i + 1) +
                       llList2Float(UranusTermL3, i + 2) * tau);
@@ -506,7 +505,7 @@
 
         n = llGetListLength(UranusTermL4);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermL4, i) *
                 llCos(llList2Float(UranusTermL4, i + 1) +
                       llList2Float(UranusTermL4, i + 2) * tau);
@@ -517,7 +516,7 @@
 
         n = llGetListLength(UranusTermB0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermB0, i) *
                 llCos(llList2Float(UranusTermB0, i + 1) +
                       llList2Float(UranusTermB0, i + 2) * tau);
@@ -528,7 +527,7 @@
 
         n = llGetListLength(UranusTermB1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermB1, i) *
                 llCos(llList2Float(UranusTermB1, i + 1) +
                       llList2Float(UranusTermB1, i + 2) * tau);
@@ -539,7 +538,7 @@
 
         n = llGetListLength(UranusTermB2);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermB2, i) *
                 llCos(llList2Float(UranusTermB2, i + 1) +
                       llList2Float(UranusTermB2, i + 2) * tau);
@@ -550,7 +549,7 @@
 
         n = llGetListLength(UranusTermB3);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermB3, i) *
                 llCos(llList2Float(UranusTermB3, i + 1) +
                       llList2Float(UranusTermB3, i + 2) * tau);
@@ -561,7 +560,7 @@
 
         n = llGetListLength(UranusTermB4);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermB4, i) *
                 llCos(llList2Float(UranusTermB4, i + 1) +
                       llList2Float(UranusTermB4, i + 2) * tau);
@@ -572,7 +571,7 @@
 
         n = llGetListLength(UranusTermR0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermR0, i) *
                 llCos(llList2Float(UranusTermR0, i + 1) +
                       llList2Float(UranusTermR0, i + 2) * tau);
@@ -583,7 +582,7 @@
 
         n = llGetListLength(UranusTermR1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermR1, i) *
                 llCos(llList2Float(UranusTermR1, i + 1) +
                       llList2Float(UranusTermR1, i + 2) * tau);
@@ -594,7 +593,7 @@
 
         n = llGetListLength(UranusTermR2);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermR2, i) *
                 llCos(llList2Float(UranusTermR2, i + 1) +
                       llList2Float(UranusTermR2, i + 2) * tau);
@@ -605,7 +604,7 @@
 
         n = llGetListLength(UranusTermR3);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermR3, i) *
                 llCos(llList2Float(UranusTermR3, i + 1) +
                       llList2Float(UranusTermR3, i + 2) * tau);
@@ -616,7 +615,7 @@
 
         n = llGetListLength(UranusTermR4);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(UranusTermR4, i) *
                 llCos(llList2Float(UranusTermR4, i + 1) +
                       llList2Float(UranusTermR4, i + 2) * tau);

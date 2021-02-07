@@ -222,9 +222,16 @@
 //tawk("pos " + (string) pos + " obelix " + (string) obelix + " hra " + (string) hra +
 //    " hdec " + (string) hdec + " hrv " + (string) hrv + " hlong " + (string) hlong +
 //    " hlat " + (string) hlat);
-        return [ hlong, hlat, hrv ];
+        return [ fixangr(hlong), hlat, hrv ];
     }
 
+    //  fixangr  --  Range reduce an angle in radians
+
+    float fixangr(float a) {
+        return a - (TWO_PI * (llFloor(a / TWO_PI)));
+    }
+
+/*
     //  dumpOrbitalElements  --  Dump orbital elements
 
     dumpOrbitalElements(list e) {
@@ -247,6 +254,7 @@
             "  Q " + (string) llList2Float(e, 16)
         );
     }
+*/
 
     default {
         state_entry() {
@@ -291,7 +299,7 @@
 //            m_Q = (1 + m_e) * m_a;
             s_elem = llListReplaceList(s_elem, [ 360 / m_n, (1 + m_e) * m_a ], 15, 16);
 
-dumpOrbitalElements(s_elem);
+//dumpOrbitalElements(s_elem);
         }
 
         link_message(integer sender, integer num, string str, key id) {

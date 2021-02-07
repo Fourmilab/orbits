@@ -259,7 +259,7 @@
 
         n = llGetListLength(EarthTermL0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(EarthTermL0, i) *
                 llCos(llList2Float(EarthTermL0, i + 1) +
                       llList2Float(EarthTermL0, i + 2) * tau);
@@ -270,7 +270,7 @@
 
         n = llGetListLength(EarthTermL1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(EarthTermL1, i) *
                 llCos(llList2Float(EarthTermL1, i + 1) +
                       llList2Float(EarthTermL1, i + 2) * tau);
@@ -281,7 +281,7 @@
 
         n = llGetListLength(EarthTermL2);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(EarthTermL2, i) *
                 llCos(llList2Float(EarthTermL2, i + 1) +
                       llList2Float(EarthTermL2, i + 2) * tau);
@@ -292,7 +292,7 @@
 
         n = llGetListLength(EarthTermL3);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(EarthTermL3, i) *
                 llCos(llList2Float(EarthTermL3, i + 1) +
                       llList2Float(EarthTermL3, i + 2) * tau);
@@ -303,7 +303,7 @@
 
         n = llGetListLength(EarthTermL4);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(EarthTermL4, i) *
                 llCos(llList2Float(EarthTermL4, i + 1) +
                       llList2Float(EarthTermL4, i + 2) * tau);
@@ -314,7 +314,7 @@
 
         n = llGetListLength(EarthTermL5);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(EarthTermL5, i) *
                 llCos(llList2Float(EarthTermL5, i + 1) +
                       llList2Float(EarthTermL5, i + 2) * tau);
@@ -325,7 +325,7 @@
 
         n = llGetListLength(EarthTermB0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(EarthTermB0, i) *
                 llCos(llList2Float(EarthTermB0, i + 1) +
                       llList2Float(EarthTermB0, i + 2) * tau);
@@ -336,7 +336,7 @@
 
         n = llGetListLength(EarthTermB1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(EarthTermB1, i) *
                 llCos(llList2Float(EarthTermB1, i + 1) +
                       llList2Float(EarthTermB1, i + 2) * tau);
@@ -347,7 +347,7 @@
 
         n = llGetListLength(EarthTermR0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(EarthTermR0, i) *
                 llCos(llList2Float(EarthTermR0, i + 1) +
                       llList2Float(EarthTermR0, i + 2) * tau);
@@ -358,7 +358,7 @@
 
         n = llGetListLength(EarthTermR1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(EarthTermR1, i) *
                 llCos(llList2Float(EarthTermR1, i + 1) +
                       llList2Float(EarthTermR1, i + 2) * tau);
@@ -369,7 +369,7 @@
 
         n = llGetListLength(EarthTermR2);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(EarthTermR2, i) *
                 llCos(llList2Float(EarthTermR2, i + 1) +
                       llList2Float(EarthTermR2, i + 2) * tau);
@@ -380,7 +380,7 @@
 
         n = llGetListLength(EarthTermR3);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(EarthTermR3, i) *
                 llCos(llList2Float(EarthTermR3, i + 1) +
                       llList2Float(EarthTermR3, i + 2) * tau);
@@ -391,7 +391,7 @@
 
         n = llGetListLength(EarthTermR4);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(EarthTermR4, i) *
                 llCos(llList2Float(EarthTermR4, i + 1) +
                       llList2Float(EarthTermR4, i + 2) * tau);

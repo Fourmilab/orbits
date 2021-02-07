@@ -226,7 +226,7 @@
 
         n = llGetListLength(MercuryTermL0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermL0, i) *
                 llCos(llList2Float(MercuryTermL0, i + 1) +
                       llList2Float(MercuryTermL0, i + 2) * tau);
@@ -237,7 +237,7 @@
 
         n = llGetListLength(MercuryTermL1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermL1, i) *
                 llCos(llList2Float(MercuryTermL1, i + 1) +
                       llList2Float(MercuryTermL1, i + 2) * tau);
@@ -248,7 +248,7 @@
 
         n = llGetListLength(MercuryTermL2);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermL2, i) *
                 llCos(llList2Float(MercuryTermL2, i + 1) +
                       llList2Float(MercuryTermL2, i + 2) * tau);
@@ -259,7 +259,7 @@
 
         n = llGetListLength(MercuryTermL3);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermL3, i) *
                 llCos(llList2Float(MercuryTermL3, i + 1) +
                       llList2Float(MercuryTermL3, i + 2) * tau);
@@ -270,7 +270,7 @@
 
         n = llGetListLength(MercuryTermL4);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermL4, i) *
                 llCos(llList2Float(MercuryTermL4, i + 1) +
                       llList2Float(MercuryTermL4, i + 2) * tau);
@@ -281,7 +281,7 @@
 
         n = llGetListLength(MercuryTermL5);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermL5, i) *
                 llCos(llList2Float(MercuryTermL5, i + 1) +
                       llList2Float(MercuryTermL5, i + 2) * tau);
@@ -292,7 +292,7 @@
 
         n = llGetListLength(MercuryTermB0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermB0, i) *
                 llCos(llList2Float(MercuryTermB0, i + 1) +
                       llList2Float(MercuryTermB0, i + 2) * tau);
@@ -303,7 +303,7 @@
 
         n = llGetListLength(MercuryTermB1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermB1, i) *
                 llCos(llList2Float(MercuryTermB1, i + 1) +
                       llList2Float(MercuryTermB1, i + 2) * tau);
@@ -314,7 +314,7 @@
 
         n = llGetListLength(MercuryTermB2);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermB2, i) *
                 llCos(llList2Float(MercuryTermB2, i + 1) +
                       llList2Float(MercuryTermB2, i + 2) * tau);
@@ -325,7 +325,7 @@
 
         n = llGetListLength(MercuryTermB3);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermB3, i) *
                 llCos(llList2Float(MercuryTermB3, i + 1) +
                       llList2Float(MercuryTermB3, i + 2) * tau);
@@ -336,7 +336,7 @@
 
         n = llGetListLength(MercuryTermB4);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermB4, i) *
                 llCos(llList2Float(MercuryTermB4, i + 1) +
                       llList2Float(MercuryTermB4, i + 2) * tau);
@@ -347,7 +347,7 @@
 
         n = llGetListLength(MercuryTermR0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermR0, i) *
                 llCos(llList2Float(MercuryTermR0, i + 1) +
                       llList2Float(MercuryTermR0, i + 2) * tau);
@@ -358,7 +358,7 @@
 
         n = llGetListLength(MercuryTermR1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermR1, i) *
                 llCos(llList2Float(MercuryTermR1, i + 1) +
                       llList2Float(MercuryTermR1, i + 2) * tau);
@@ -369,7 +369,7 @@
 
         n = llGetListLength(MercuryTermR2);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermR2, i) *
                 llCos(llList2Float(MercuryTermR2, i + 1) +
                       llList2Float(MercuryTermR2, i + 2) * tau);
@@ -380,7 +380,7 @@
 
         n = llGetListLength(MercuryTermR3);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(MercuryTermR3, i) *
                 llCos(llList2Float(MercuryTermR3, i + 1) +
                       llList2Float(MercuryTermR3, i + 2) * tau);
@@ -555,7 +555,7 @@
 
         n = llGetListLength(VenusTermL0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermL0, i) *
                 llCos(llList2Float(VenusTermL0, i + 1) +
                       llList2Float(VenusTermL0, i + 2) * tau);
@@ -566,7 +566,7 @@
 
         n = llGetListLength(VenusTermL1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermL1, i) *
                 llCos(llList2Float(VenusTermL1, i + 1) +
                       llList2Float(VenusTermL1, i + 2) * tau);
@@ -577,7 +577,7 @@
 
         n = llGetListLength(VenusTermL2);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermL2, i) *
                 llCos(llList2Float(VenusTermL2, i + 1) +
                       llList2Float(VenusTermL2, i + 2) * tau);
@@ -588,7 +588,7 @@
 
         n = llGetListLength(VenusTermL3);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermL3, i) *
                 llCos(llList2Float(VenusTermL3, i + 1) +
                       llList2Float(VenusTermL3, i + 2) * tau);
@@ -599,7 +599,7 @@
 
         n = llGetListLength(VenusTermL4);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermL4, i) *
                 llCos(llList2Float(VenusTermL4, i + 1) +
                       llList2Float(VenusTermL4, i + 2) * tau);
@@ -610,7 +610,7 @@
 
         n = llGetListLength(VenusTermL5);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermL5, i) *
                 llCos(llList2Float(VenusTermL5, i + 1) +
                       llList2Float(VenusTermL5, i + 2) * tau);
@@ -621,7 +621,7 @@
 
         n = llGetListLength(VenusTermB0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermB0, i) *
                 llCos(llList2Float(VenusTermB0, i + 1) +
                       llList2Float(VenusTermB0, i + 2) * tau);
@@ -632,7 +632,7 @@
 
         n = llGetListLength(VenusTermB1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermB1, i) *
                 llCos(llList2Float(VenusTermB1, i + 1) +
                       llList2Float(VenusTermB1, i + 2) * tau);
@@ -643,7 +643,7 @@
 
         n = llGetListLength(VenusTermB2);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermB2, i) *
                 llCos(llList2Float(VenusTermB2, i + 1) +
                       llList2Float(VenusTermB2, i + 2) * tau);
@@ -654,7 +654,7 @@
 
         n = llGetListLength(VenusTermB3);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermB3, i) *
                 llCos(llList2Float(VenusTermB3, i + 1) +
                       llList2Float(VenusTermB3, i + 2) * tau);
@@ -665,7 +665,7 @@
 
         n = llGetListLength(VenusTermB4);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermB4, i) *
                 llCos(llList2Float(VenusTermB4, i + 1) +
                       llList2Float(VenusTermB4, i + 2) * tau);
@@ -676,7 +676,7 @@
 
         n = llGetListLength(VenusTermR0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermR0, i) *
                 llCos(llList2Float(VenusTermR0, i + 1) +
                       llList2Float(VenusTermR0, i + 2) * tau);
@@ -687,7 +687,7 @@
 
         n = llGetListLength(VenusTermR1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermR1, i) *
                 llCos(llList2Float(VenusTermR1, i + 1) +
                       llList2Float(VenusTermR1, i + 2) * tau);
@@ -698,7 +698,7 @@
 
         n = llGetListLength(VenusTermR2);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermR2, i) *
                 llCos(llList2Float(VenusTermR2, i + 1) +
                       llList2Float(VenusTermR2, i + 2) * tau);
@@ -709,7 +709,7 @@
 
         n = llGetListLength(VenusTermR3);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermR3, i) *
                 llCos(llList2Float(VenusTermR3, i + 1) +
                       llList2Float(VenusTermR3, i + 2) * tau);
@@ -720,7 +720,7 @@
 
         n = llGetListLength(VenusTermR4);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(VenusTermR4, i) *
                 llCos(llList2Float(VenusTermR4, i + 1) +
                       llList2Float(VenusTermR4, i + 2) * tau);

@@ -726,7 +726,9 @@
         1.4097e-007, 2.67074280191, 206.1855484372,
         1.3537e-007, 1.45669521408, 199.0720014364,
         1.3364e-007, 4.5882699637, 426.598190876,
-        7.257e-008, 4.62966127155, 213.299095438,
+        7.257e-008, 4.62966127155, 213.299095438
+/*
+        ,
         4.876e-008, 3.61448275002, 639.897286314,
         3.759e-008, 4.89624165044, 440.8252848776,
         3.303e-008, 4.07190859545, 647.0108333148,
@@ -736,6 +738,7 @@
         2.338e-008, 3.69553554327, 88.865680217,
         2.052e-008, 3.31663577368, 95.9792272178,
         2.028e-008, 0.56025552769, 117.3198682202
+*/
     ];
 
     list posSaturn(integer jd, float jdf) {
@@ -757,7 +760,7 @@
 
         n = llGetListLength(SaturnTermL0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermL0, i) *
                 llCos(llList2Float(SaturnTermL0, i + 1) +
                       llList2Float(SaturnTermL0, i + 2) * tau);
@@ -768,7 +771,7 @@
 
         n = llGetListLength(SaturnTermL1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermL1, i) *
                 llCos(llList2Float(SaturnTermL1, i + 1) +
                       llList2Float(SaturnTermL1, i + 2) * tau);
@@ -779,7 +782,7 @@
 
         n = llGetListLength(SaturnTermL2);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermL2, i) *
                 llCos(llList2Float(SaturnTermL2, i + 1) +
                       llList2Float(SaturnTermL2, i + 2) * tau);
@@ -790,7 +793,7 @@
 
         n = llGetListLength(SaturnTermL3);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermL3, i) *
                 llCos(llList2Float(SaturnTermL3, i + 1) +
                       llList2Float(SaturnTermL3, i + 2) * tau);
@@ -801,7 +804,7 @@
 
         n = llGetListLength(SaturnTermL4);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermL4, i) *
                 llCos(llList2Float(SaturnTermL4, i + 1) +
                       llList2Float(SaturnTermL4, i + 2) * tau);
@@ -812,7 +815,7 @@
 
         n = llGetListLength(SaturnTermL5);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermL5, i) *
                 llCos(llList2Float(SaturnTermL5, i + 1) +
                       llList2Float(SaturnTermL5, i + 2) * tau);
@@ -823,7 +826,7 @@
 
         n = llGetListLength(SaturnTermB0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermB0, i) *
                 llCos(llList2Float(SaturnTermB0, i + 1) +
                       llList2Float(SaturnTermB0, i + 2) * tau);
@@ -834,7 +837,7 @@
 
         n = llGetListLength(SaturnTermB1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermB1, i) *
                 llCos(llList2Float(SaturnTermB1, i + 1) +
                       llList2Float(SaturnTermB1, i + 2) * tau);
@@ -845,7 +848,7 @@
 
         n = llGetListLength(SaturnTermB2);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermB2, i) *
                 llCos(llList2Float(SaturnTermB2, i + 1) +
                       llList2Float(SaturnTermB2, i + 2) * tau);
@@ -856,7 +859,7 @@
 
         n = llGetListLength(SaturnTermB3);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermB3, i) *
                 llCos(llList2Float(SaturnTermB3, i + 1) +
                       llList2Float(SaturnTermB3, i + 2) * tau);
@@ -867,7 +870,7 @@
 
         n = llGetListLength(SaturnTermB4);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermB4, i) *
                 llCos(llList2Float(SaturnTermB4, i + 1) +
                       llList2Float(SaturnTermB4, i + 2) * tau);
@@ -878,7 +881,7 @@
 
         n = llGetListLength(SaturnTermB5);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermB5, i) *
                 llCos(llList2Float(SaturnTermB5, i + 1) +
                       llList2Float(SaturnTermB5, i + 2) * tau);
@@ -889,7 +892,7 @@
 
         n = llGetListLength(SaturnTermR0);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermR0, i) *
                 llCos(llList2Float(SaturnTermR0, i + 1) +
                       llList2Float(SaturnTermR0, i + 2) * tau);
@@ -900,7 +903,7 @@
 
         n = llGetListLength(SaturnTermR1);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermR1, i) *
                 llCos(llList2Float(SaturnTermR1, i + 1) +
                       llList2Float(SaturnTermR1, i + 2) * tau);
@@ -911,7 +914,7 @@
 
         n = llGetListLength(SaturnTermR2);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermR2, i) *
                 llCos(llList2Float(SaturnTermR2, i + 1) +
                       llList2Float(SaturnTermR2, i + 2) * tau);
@@ -922,7 +925,7 @@
 
         n = llGetListLength(SaturnTermR3);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermR3, i) *
                 llCos(llList2Float(SaturnTermR3, i + 1) +
                       llList2Float(SaturnTermR3, i + 2) * tau);
@@ -933,7 +936,7 @@
 
         n = llGetListLength(SaturnTermR4);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermR4, i) *
                 llCos(llList2Float(SaturnTermR4, i + 1) +
                       llList2Float(SaturnTermR4, i + 2) * tau);
@@ -944,7 +947,7 @@
 
         n = llGetListLength(SaturnTermR5);
         x = 0;
-        for (i = 0; i < n; i += 3) {
+        for (i = n - 3; i >= 0; i -= 3) {
             x += llList2Float(SaturnTermR5, i) *
                 llCos(llList2Float(SaturnTermR5, i + 1) +
                       llList2Float(SaturnTermR5, i + 2) * tau);
@@ -964,7 +967,7 @@
 
     integer LM_EP_CALC = 431;           // Calculate ephemeris
     integer LM_EP_RESULT = 432;         // Ephemeris calculation result
-    integer LM_EP_STAT = 433;           // Print memory status
+//    integer LM_EP_STAT = 433;           // Print memory status
 
     default {
         state_entry() {
