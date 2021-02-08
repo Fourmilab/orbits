@@ -73,7 +73,7 @@
                     //  ORBITING  --  Set orbit parameters
 
                     } else if (ccmd == "ORBITING") {
-llOwnerSay("ORBITING params received " + llList2CSV(msg));
+//llOwnerSay("ORBITING params received " + llList2CSV(msg));
                         m_name = llList2String(msg, 2);
                         m_size = (vector) llList2String(msg, 3);
 //                        m_rotation = (rotation) llList2String(msg, 4);

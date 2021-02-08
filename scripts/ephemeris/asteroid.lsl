@@ -309,11 +309,11 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                  r * llCos(b) * llSin(l),
                  r * llSin(b) >;
     }
-    
+
     /*  rectSph  --  Convert rectangular co-ordinates to spherical.
                      The spherical co-ordinates are returned in a
                      vector <L, B, R> with angles in radians.  */
-                     
+
     vector rectSph(vector rc) {
         float r = llVecMag(rc);
         return < llAtan2(rc.y, rc.x), llAsin(rc.z / r), r >;
@@ -324,14 +324,14 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
     float fixangr(float a) {
         return a - (TWO_PI * (llFloor(a / TWO_PI)));
     }
-    
+
     //  updateLegend  --  Update floating text legend above body
-    
+
     updateLegend(vector pos) {
         if (s_legend) {
             string legend;
             vector lbr = rectSph(pos);
-            
+
             legend = m_name +
                      "\nLong " + eff(fixangr(lbr.x) * RAD_TO_DEG) + U_deg +
                         " Lat " + eff(lbr.y * RAD_TO_DEG) + U_deg +
@@ -596,9 +596,9 @@ if ((stepCount % 64) == 0) {
                 }
             }
         }
-        
+
         //  Toggle legend on touch
-        
+
         touch_start(integer n) {
             s_legend = !s_legend;
             if (!s_legend) {
