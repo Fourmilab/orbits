@@ -31,39 +31,7 @@
     float mCentre;                  // Central body mass (solar masses)
     key kCentre;                    // Key of central body
 
-    integer m_updating = FALSE;     // Is an update in progress ?
-
     float M_E = 2.718281828459045;  // Base of the natural logarithms
-
-    float G_SI = 6.6732e-11;            // (Newton Metre^2) / Kilogram^2
-    float AU = 149504094917.0;          // Metres / Astronomical unit
-    float M_SUN = 1.989e30;             // Kilograms / Mass of Sun
-    float YEAR = 31536000;              // Seconds / Year (365.0 * 24 * 60 * 60)
-
-    /*  From Newton's second law, F = ma,
-
-               Newton = kg m / sec^2
-
-        the fundamental units of the gravitational constant are:
-
-               G = N m^2 / kg^2
-                 = (kg m / sec^2) m^2 / kg^2
-                 = kg m^3 / sec^2 kg^2
-                 = m^3 / sec^2 kg
-
-        The conversion factor, therefore, between the SI gravitational
-        constant and its equivalent in our units is:
-
-               K = AU^3 / YEAR^2 M_SUN
-
-    */
-
-    float GRAV_CONV;                    // ((AU * AU * AU) / ((YEAR * YEAR) * M_SUN))
-
-    /*  And finally the gravitational constant itself is obtained by
-        dividing the SI definition by this conversion factor.  */
-
-    float GRAVCON;                      // (G_SI / GRAV_CONV)
 
     //  Settings communicated by deployer
     float s_kaboom = 50;                // Self destruct if this far (AU) from deployer
@@ -91,7 +59,7 @@
     //  Link messages
 
     //  Command processor messages
-    integer LM_CP_COMMAND = 223;    // Process command
+
     integer LM_CP_RESUME = 225;         // Resume script after command
     integer LM_CP_REMOVE = 226;         // Remove simulation objects
 
@@ -414,11 +382,6 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
     }
 */
 
-    integer BODY = 24;                  // Our body number
-
-    integer LM_EP_CALC = 431;           // Calculate ephemeris
-    integer LM_EP_RESULT = 432;         // Ephemeris calculation result
-
     default {
 
         on_rez(integer n) {
@@ -427,10 +390,6 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
 
         state_entry() {
             whoDat = owner = llGetOwner();
-
-            //  Initialise computed constants
-            GRAV_CONV = ((AU * AU * AU) / ((YEAR * YEAR) * M_SUN));
-            GRAVCON = G_SI / GRAV_CONV;
 
             llListen(massChannel, "", NULL_KEY, "");
         }
@@ -479,13 +438,14 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
             } else if (num == LM_OR_PLOT) {
                 if (s_sources != [ ]) {
                     list l = llCSV2List(str);
+//tawk("Orbit " + llList2CSV(l));
                     integer i;
                     integer k = 1;
                     integer n = llGetListLength(s_sources);
                     string body = llList2String(l, 0);
                     s_elem = [ ];
                     for (i = 0; i < n; i += s_sourcesE, k++) {
-                        if (llToLower(llList2String(s_sources, i)) == body) {
+                        if (llList2String(s_sources, i) == body) {
                             s_elem = llList2List(s_sources, i, i + (s_sourcesE - 1));
                             jump foundOrb;
                         }
@@ -505,14 +465,13 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                                 commence plotting at the periapse.  */
                             o_jd = llList2Integer(s_elem, 11);
                             o_jdf = llList2Float(s_elem, 12);
-                            o_arm = 0;                      // Start on positive time arm
+                            o_arm = 0;                              // Start on positive time arm
                         }
-                        float o_auscale = llList2Float(l, 3);     // Astronomical unit scale factor
-                        float o_nsegments = llList2Integer(l, 4); // Number of segments to plot
+                        float o_auscale = llList2Float(l, 3);       // Astronomical unit scale factor
+                        float o_nsegments = llList2Integer(l, 4);   // Number of segments to plot
                         vector o_sunpos = (vector) llList2String(l, 5); // Position of Sun
-                        integer flPlotPerm = llList2Integer(l, 6);  // Use permanent lines ?
+                        flPlotPerm = llList2Integer(l, 6);          // Use permanent lines ?
 
-                        integer o_csegment = 0;                     // Current segment being plotted
                         float o_period = llList2Float(s_elem, 15) * 365.25;
                         float o_timestep;
                         float o_aulimit = llList2Float(s_elem, 13) * 5; // Limit to plot open trajectories
@@ -556,8 +515,8 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                                     o_timestep = -o_timestep;
                                 }
                             }
-                            plotSeg(pXYZl, pXYZ0, o_sunpos.z);
                          }
+                        plotSeg(pXYZl, pXYZ0, o_sunpos.z);
                     }
                     llMessageLinked(LINK_THIS, LM_CP_RESUME, "", id);
                 }
@@ -567,25 +526,23 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
             } else if (num == LM_OR_ELLIPSE) {
                 if (s_sources != [ ]) {
                     list l = llCSV2List(str);
+//tawk("Ellipse " + llList2CSV(l));
                     integer i;
                     integer k = 1;
                     integer n = llGetListLength(s_sources);
                     string body = llList2String(l, 0);
                     s_elem = [ ];
                     for (i = 0; i < n; i += s_sourcesE, k++) {
-                        if (llToLower(llList2String(s_sources, i)) == body) {
+                        if (llList2String(s_sources, i) == body) {
                             s_elem = llList2List(s_sources, i, i + (s_sourcesE - 1));
                             jump foundIt;
                         }
                     }
                     @foundIt;
-//tawk("Ellipse " + body + "  elem " + llList2CSV(s_elem));
                     /*  We can only display an ellipse if an object is being
                         tracked and its eccentricity is less than 1.  */
                     if ((s_elem != [ ]) &&
                         (llList2Float(s_elem, 4) < 1)) {
-                        integer o_jd = llList2Integer(l, 1);            // Julian day
-                        float o_jdf = llList2Float(l, 2);               // Julian day fraction
                         float o_auscale = llList2Float(l, 3);           // Astronomical unit scale factor
                         vector o_sunpos = (vector) llList2String(l, 4); // Position of Sun
                         float pdays = llList2Float(s_elem, 15) * 365.25; // Orbital period in days
@@ -711,11 +668,17 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
 
             } else if (num == LM_GP_SOURCE) {
                 list l = llJson2List(str);
-//tawk("SRC " + llList2CSV(l));
-                source_keys += llList2Key(l, 1);                // Source key
-                s_sources += llList2List(l, 2, -1);             // Source parameters
-//tawk("Source " + (string) llList2Integer(l, 0) + " " + (string) llList2Key(l, 1));
-//dumpOrbitalElements(llList2List(s_sources, -(s_sourcesE), -1));
+                integer sindex = llList2Integer(l, 0);          // Source index
+                key skey = llList2Key(l, 1);                    // Source key
+                source_keys += skey;
+                integer epochJD = llList2Integer(l, 2);         // Epoch Julian day and fraction
+                float epochJDf = llList2Float(l, 3);
+                s_sources += llList2List(l, 4, -1);             // Source parameters
+                list p = posMP(sindex, epochJD, epochJDf);
+                vector pos = < llList2Float(p, 0), llList2Float(p, 1), llList2Float(p, 2) >;
+                vector rwhere = (pos * s_auscale) + llGetPos() + <0, 0, s_zoffset>;
+                llRegionSayTo(skey, massChannel, "U:{" + (string) sindex + "}" +
+                    fuis(rwhere.x) + fuis(rwhere.y) + fuis(rwhere.z));
 
             //  LM_GP_STAT (773): Report status
 
