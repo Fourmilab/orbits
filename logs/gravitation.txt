@@ -408,24 +408,397 @@ trail of changes and being able to examine code prior to major
 re-structurings justifies the additional overhead at this point. So I
 created the repository:
     git init
+and populated it with the current state of the source code.
+    git add --all
+    git commit -m "Initial commit"
+Note that at this point I am not creating a GitHub repository, but
+simply starting Git configuration control on a local basis.
+
+Eliminated the unused items from the LM_OR_ELEMENTS messages sent in
+orbital ellipse generation from the Orbits and Minor Planets scripts.
+
+Completed the first pass of moving the numerical integrator from the
+main Gravitation script (where it has been disabled to avoid memory
+crashes) to its own "Numerical Integration" script.  This script
+handles the Mass command to declare the masses as well as running the
+integration itself.  Most of this is done by processing commands
+forwarded from the main script when a numerical integration model is
+loaded.  The main script now forwards its settings to the other scripts
+in the deployer with an LM_AS_SETTINGS link message as well as to the
+masses with llRegionSay....  It is basically working, but there are a
+lot of state-setting issues such as handling settings turning the
+legend on and off while a numerical integration is running.
+
+Fixed propagation of the legend settings to Numerical Integration.
+
+Completed the initial implementation of a replacement for the Pluto
+ephemeris calculator with a stripped-down version of the Minor Planets
+evaluator using the JPL Small Body Database orbital elements for Pluto,
+which are hard coded into the s_elem list in the source.  From a
+cursory test, plotting position and drawing the orbit appear to be
+working OK, but fitting an orbit ellipse is wrong (while fitting an
+ellipse to the same elements loaded as an asteroid works fine). I'll
+dig into this after night's restorative sleep.
+
+2021 January 30
+
+The problem with fitting an ellipse to Pluto's orbit was simple: we
+didn't have the required table entries for the apsides() function in
+Orbits to find the perihelion time of Pluto.  I added them (from the
+JPL Small-Body Database) and everything works fine now.
+
+Script suspend and resume for the Orbit and Orbit .. ellipse commands
+now work correctly.  The "Orbits" script may be used to verify this
+as well as testing edge cases for orbit generation.
+
+Fixed Script suspend/resume to work with Step command for planetary
+theory.  Fixed script suspent/resume to work with the Step command
+for numerical integration.
+
+2021 January 31
+
+Added script suspend/resume support for the Planet, Asteroid, Comet,
+and Mass commands.  This is still tacky for the Planet command with no
+arguments, which presently resumes after the first planet completes
+initialisation.  It should wait until all of them have initialised.
+
+Completed a very preliminary implementation of the cluster synthesiser
+in tools/cluster_models/cluster.pl.  It is parameterised by arguments
+to the function addCluster() (which will eventually be set by the
+command line or a parameter file), and creates Mass declarations for
+the specified number of masses, with or without a central mass.  This
+is intended to model star clusters, and test models typically run with
+parameters like:
+    set auscale 0.00003
+    set kaboom 250000
+as they are set in the Galcent test script in the development deployer.
+At the moment, all masses are placed in circular orbits, are white,
+and have the same size.  Refinements to set these parameters will be
+added over time--the immediate goal is to test the numerical integrator
+in a complex environment, not make pretty pictures.
+
+2021 February 1
+
+W. B. Klemperer's paper on symmetrical meta-stable n-body central
+configurations, "Some Properties of Rosette Configurations of
+Gravitating Bodies in Homographic Equilibrium" (Astronomical Journal.
+67 (3), April 1962: 162–167).
+    http://articles.adsabs.harvard.edu/pdf/1962AJ.....67..162K
+contains equations for a parameter he calls "k" which provides a
+correction factor to the sum of masses in the configuration that
+computes the net central force on a body in a symmetrical polygonal
+"rosette" configuration that is used to calculate the constant angular
+velocity at which the bodies will orbit (at least initially)
+circularly.  These equations (two versions are supplied, one for an
+even number of bodies, one for odd) are incorrect and do not reproduce
+the values given in Table I which purport to have been computed from
+them.  (The error(s) are in addition to the typographical error in the
+equation for an even number of bodies, where "u" appears instead of the
+intended "n".)  I cannot even figure out what Klemperer was trying to
+do in the equations, so after wasting a great deal of time, I simply
+re-derived the whole thing from first principles, implementing the
+vector calculations in tools/cluster_models/cluster.pl in the function
+netForce(), which computes the vector net force on a body in the
+current model, taking the gravitational constant G as 1.  It also
+returns the total mass of bodies in the model, and Klemperer's k value
+may be computed as the magnitude of the force vector divided by the
+total mass.  Testing this for the examples in Klemperer's paper shows
+that the values in his Table I are correct, notwithstanding the
+erroneous equations claimed to have produced them.  In any case, we can
+now correctly compute the central force for any symmetrical
+configuration, with much greater precision than the three significant
+digits given in Klemperer's paper.
+
+Added support for central masses in ring configurations.  With the
+general computation of k, this doesn't require any special handling in
+computation or orbital velocity, as the central mass is automatically
+accounted for.  Adding even a large central mass doesn't noticeably
+stabilise a three mass rosette configuration, which becomes undone due
+to single precision round-off just about as quickly as in the absence
+of one.
+
+Added support for elliptical orbits in clusters generated by
+addCluster() in cluster.pl.  After assigning a random eccentricity to
+the orbit within the range specified in the addCluster() call,
+genCluster computes the velocity of a body at periapse in an orbit with
+the chosen semi-major axis and eccentricity around the centre of mass
+using the vis-viva equation:
+    https://en.wikipedia.org/wiki/Vis-viva_equation
+which simply expresses the invariant total energy of a geodesic orbit
+as the sum of its gravitational potential and kinetic energy and
+solving for periapse velocity, which is:
+    v = sqrt(((1 - e) G M )/ ((1 + e) a))
+where a is the semi-major axis, e the eccentricity, and G M the
+standard gravitational parameter (mu).  For simplicity, we start all
+bodies at apoapse and let evolution of the model shuffle them up
+based upon the different orbital periods.
+
+2021 February 4
+
+In the Galactic Centre module, calculation of positions of sources
+S175 and S4714, both of which have eccentricities in excess of 0.98,
+were failing when trying to use the Landgraf/Stumpff algorithm for
+near-parabolic motion presented in chapter 35 of Meeus's Astronomical
+Algorithms.  This is the algorithm we've been using in Solar System
+Live for ages, but it simply does not work in single precision floating
+point: it runs away and bails out on a failure to converge.  I removed
+it and made gKepler use the Roger Sinnott binary search algorithm, which
+works for any eccentricity up to 1.  This corrected the calculation
+for these sources.
+
+Making a synthetic comet with an eccentricity of 0.985, I verified that
+the near-parabolic algorithm also fails in Minor Planets.  I removed it
+from there as well, which gives a little more breathing room in script
+memory there.
+
+In an attempt to speed up updates when there are many objects in a
+simulation (a case exacerbated by the Galactic Centre model, where
+the full cluster now has 43 objects, I changed the distribution of
+position updates to objects from individual llRegionSayTo() calls for
+each object to a collective update sent with llRegionSay() which contains
+as many object updates as will fit in 1024 characters.  This is based
+upon research with Gridmark, which revealed that the bottleneck with
+region messages is the rate at which they can be sent and not the byte
+rate.  This way we can update all 43 objects with just two messages.
+
+To further improve performance, I replaced sending co-ordinates as
+decimal numbers with the fuis() and siuf() functions from the library:
+    http://wiki.secondlife.com/wiki/User:Strife_Onizuka/Float_Functions
+which preserve all bits of a float's precision and encode each number
+as just 6 base64 characters.  This allows packing more updates into a
+message and is much faster when encoding and decoding.
+
+With these changes in place, the computation and distribution of updates
+appears to be substantially faster than all of the individual objects
+can update themselves.  We'll need some form of feedback and throttling
+to avoid lost messages and the consequent jerky updates.
+
+2021 February 5
+
+To avoid message loss and non-responsiveness to Run/stop commands, I
+implemented a feedback mechanism which prevents sending an update
+to Galactic Centre sources before they're all done moving from the
+previous update.  This is done by having the last source created
+(and how it detects it's last a dog-dirty trick, but lightning fast)
+send an UPDATED message to the deployer when it's done moving.  In
+Gravitation, we ignore timer ticks to update between the time we send
+an LM_GC_UPDATE message and when the UPDATED confirmation arrives.
+This keeps everything in sync and avoids flooding the message queue.
+
+Modified sendSettings() in Gravitation to include simEpoch in the
+settings, and the Epoch command to push settings when changing the
+Epoch.  Galactic Centre now uses this to place sources at their correct
+position for the epoch rather than in placeholder positions which were
+updated on the first simulation step.  This is a small refinement, but
+it looks a lot less silly when you're starting up a simulation.
+
+Implemented orbit tracing and elliptical orbit fitting for the Galactic
+Centre model.  As with Minor Planets, this is done entirely within
+Galactic Centre with only a little help from Orbits to draw the orbit
+outline.
+
+Completed a major code clean-up in the Mass and Source objects (those
+used in Numerical Integration and Galactic Centre simulations,
+respectively).  I removed lots of dead code dating to when the masses
+had more autonomy, added support for the Set Labels command to show or
+hide object labels, and generally made things more comprehensible.
+This leaves only the Solar System planets to be done, but since the
+script is replicated in each one, that's a lot more busy-work which I'll
+defer until I'm confident there aren't more changes I need to propagate
+to all of them.
+
+Upgraded the Mass command handler in Numerical Integration to
+correctly handle quoted body names in upper and lower case.  This
+provides compatibility with the Asteroid and Comment commands in
+Minor Planets and the Centre and Source declarations in Galactic
+Centre.  This was simplified since all of the arguments to the Mass
+command after the name are inherently case-insensitive.
+
+2021 February 6
+
+It appears that in the course of avatar events, occasionally a
+llRegionSay[To]() message will be lost, even when it is right nearby
+in a nearly idle region and the recipient listener does not have a
+problem with message queue overflow.  This happens every ten minutes
+or so to one of the confirmation messages from Galactic Centre sources
+which we use to throttle the rate at which updates are sent,resulting
+in the simulation freezing up.  I added logic to the timer() event in
+Gravitation which sets a watchdog timer whenever it starts deferring
+updates due to ev_updating being set.
+
+After a much more involved struggle than was expected (or justified,
+based upon the eventual solution), I got the sources created by
+Galactic Centre to clean up their "Set paths lines" trails after being
+deleted by the deployer.  This is a bit more complicated than you might
+think, because the flPlotLine() objects created for trails do not have
+the main deployer as their creator, but rather the individual sources
+which plotted them along the orbit.  This means the trails will not
+respond to a ypres message from the main deployer, but instead must
+receive a message forwarded by the individual source that rezzed them.
+(Since we always check the key of the sender of a message to an object
+to avoid confusion if more than one instance of one of our models is
+present in a given region.)  I added code to forward the ypres message
+to the line segments and a handler in the script within them to clean
+themselves up upon receiving it.
+
+I also confirmed that you don't need to mark a prim Temporary when
+creating it with the builder, but that setting PRIM_TEMP_ON_REZ in
+its on_rez() event suffices.  This makes it much easier working with
+temporary prims, as they don't "peek-a-boo" and disappear while you're
+editing them before taking them into inventory.
+
+The trails for Galactic Centre objects created by "Set paths lines"
+appeared to get out ahead of the objects as they moved along their
+orbits because we updated the path with flPlotLine() before moving
+the object itself.  I changed the order of updates which fixed such
+"anticipatory orbiting".
+
+Propagated the changes from the Galactic Centre source object to the
+Numerical Integration mass object which is very similar but not
+identical (for one thing, it does not presently use the bulk update
+message protocol or handshake completion of updates back to the
+deployer).  Everything appears to be behaving.  These changes also,
+of course, need to be installed in the Solar System planets, but as
+noted above, I'll defer that larger and fussy job until I'm sure things
+have settled down and I only need to visit them once.
+
+"Ignore previous wire...."  The "lost messages" problem with Galactic
+Centre that caused so much commotion above turned out to have an
+entirely different and more subtle cause.  The "GC Fast" model I was
+using for most of my testing included a "S999" source that I ginned up
+in a hyperbolic path in order to test tracing non-closed paths
+in the Orbits command.  Well, as it happened, that was the last source
+declared in the model and, being on a hyperbolic trajectory, eventually
+flew away out of Kaboom range and self-destructed.  Once the source
+was gone, there was nobody to return the UPDATED confirmation to the
+deployer, and the simulation would freeze.  The un-sticking code
+wouldn't help, since the source responsible for acknowledging the update
+had permanently shuffled off this grid of existence.
+
+To cope with this, I moved handling of Kaboom detection from the Source
+objects's script into Galactic Centre itself, whose main update loop
+now checks every new position computed for a source for being in excess
+of s_kaboom AU from the deployer and  also for falling outside the
+region box of <[0,255), [0,255), [0,4096)>.  If a source has strayed
+beyond where it belongs, it is sent a KABOOM message and its key
+removed from source_keys, which causes it to be ignored on subsequent
+update cycles.  Note that this does not handle sources straying off
+the parcel but remaining within the region.  That will take additional
+hackery in the new elKaboom() function to deal with.
+
+This is not presently required for Numerical Integration masses as they
+do not use a confirmation messages and may disappear without stalling
+the simulation.  If and when we add confirmation to them, logic like
+this will be required there as well.
+
+To avert an imminent memory crisis in Galactic Centre (where we may want
+to load more than forty known sources orbiting Sgr A*), I split the user
+interface and parsing of object parameters into the original Galactic
+Centre script and the evolution of orbital motion into a new Galactic
+Patrol script, which is invoked by the main simulator and also handles
+related functions such as plotting orbits and fitting ellipses to closed
+orbits.  This gets all of the gnarly orbital mechanics and storage of
+orbital elements out of Galactic Centre and allows Galactic Patrol to
+handle that without all the clutter of parsing object definitions and
+assorted text bashing.  There are many refinements to be made (in
+particular, Galactic Patrol stores far more orbital element information
+about each source than it actuall needs, but it's basically working and
+can load the complete galactic centre model without blowing a gasket.
+
+Went through all of the Ephemeris calculators for Solar System,
+changing all of the calculation of periodic terms to perform additions
+in the order of absolute magnitude, smallest to largest.  This serves
+to make the most of the (severely) limited dynamic range available in
+LSL's single precision floats.  I further cleaned up code, disabling
+computation of some higher order powers of time which were not used in
+some of the simpler sets of periodic terms.  Comparing results from the
+original and optimised code showed only very minor differences in a few
+items which wouldn't make a difference in the display, but given that
+we're forced to deal with single precision, it makes me feel better
+knowing that proper floating point hygeine allows is to make the most
+of what we're given.
+
+Modified the Pluto ephemeris calculator to range reduce the
+heliocentric latitude to 0 to TWO_PI.  This is consistent with all of
+the other ephemeris calculators.  It actually doesn't make any
+difference in any of our uses of the ephemeris results, but it's easier
+to compare results among ephemeris calculations if they're all
+consistent in the range of results they return.
+
+2021 February 7
+
+Further adjusted the division of responsibility between Galactic Centre
+and Galactic Patrol to equalise memory usage between the two.  Galactic
+Centre contained an entire copy of the orbital position calculation
+code which was used simply for setting the initial position of newly
+created sources.  To get rid of all that duplicated code, I modified
+the creation of sources as follows.  When a new source is created,
+Galactic Centre now places it coincident with the central mass, which
+doesn't require the deployer to jump to the location of the mass.  Once
+the mass is created and sends its SOURCED message, Galactic Centre
+notifies Galactic Patrol with an LM_GP_SOURCE message which now
+includes the current simEpoch as well as the source key and orbital
+elements. When Galactic Patrol receives this message, it computes the
+initial position of the mass at simEpoch and sends it to the mass with
+llRegionSayTo() in an update ("U:") message addressed just to that
+mass.  The Source menu in the object then moves to the specified
+position using llSetLinkPrimitiveParamsFast() if it is within ten
+metres of the initial position and llSetRegionPos() if it's further
+away.
+
+With these changes in place and all of the now-unused code in Galactic
+Centre removed, after loading the entire "Sgr A*" model, with 45
+sources, memory usage is only 67% in Galactic Centre and 79% in
+Galactic Patrol.  These could further be reduced by modifying Galactic
+Centre to discard the orbital elements of sources after sending them to
+Galactic Patrol and Galactic Patrol to only store the orbital elements
+it needs to compute the orbital position instead of the whole thing as
+it presently does.  Since neither are presently near the cliff, and
+we're unlikely to add many more sources to the model in the near
+future, there's no reason to proceed further at this time.
+
+2021 February 8
+
+Began experimentation with automatically setting step and tick times
+for Numerical Integration simulations.  To untangle the parameters, as
+a temporary expedient I made "Set steprate" directly set the
+integration step time in years, while "Set simrate" sets the timer tick
+rate running steps in seconds.  This is horrid from a consistency
+standpoint and incompatible with Solar System and Galactic Centre, but
+it makes it a lot easier to observe the effect of settings.  I ran the
+"Galcent" model overnight with:
+    Set step 20y
+    Set sim 0.1
+and everything went smoothly, including stopping immediately when I
+paused it after running all night.
+
+Removed fixargs() from Gravitation.  None of the commands parsed there
+require its tender ministrations, so it was just wasting space and
+time.
+
+Moved processing of the "Orbit" command from Gravitation to the Orbits
+script itself as an auxiliary command.  This saved a bit of memory
+in the Gravitation script, but the main motivation was permitting
+extension of the Orbit command to properly handle body names of Solar
+System objects (including tracked minor planets), quoted body names
+including spaces and upper and lower case, and improved error detection
+and reporting.  The Orbit command now accepts names of Solar System
+bodies as well as their index, permits quoted name fields, and respects
+letter case for body names, including those it forwards to Minor Planets
+and Galactic Centre for handling.
 
 
 
 
 
-Remove unused items from ellipse generation messages.
 
 
-
+Set path length to set expiration time of path particles.
 
 
 Merge mode for collisions.  Goes "blop", sums mass and
 momentum vectors, averages colours, and adjusts radius
 based upon cube root of added mass.
-
-Klemperer rosette generator, with or without a central body.
-
-Galactic centre model, based upon 2008 orbital elements.
 
 Adjust sit position based upon rotation of bodies.
 
@@ -516,9 +889,6 @@ Set legend on/off [ body... / all ]
 Body legend display: save last update pos, use to show legend immediately
 when touched.
 
-Ellipse generation mis-handles final rotation when normal to ellipse
-and co-vertex are on opposite sides of the ellipse plane after first
-rotation.
-
-Suspend and resume script on long commands such as Orbit and Ellipse.
+Invert command to negate all velocities in numerical integration
+models to run time backwards.
 
