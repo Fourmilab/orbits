@@ -47,54 +47,8 @@
     //  Bit mask of planets present, used to request ephemeris
     integer planetsPresent = 0;
 
-    /* This program works in a somewhat unconventional system of units.
-       Length is measured in astronomical units (the mean distance from
-       the Earth to the Sun), mass in units of the mass of the Sun, and
-       time in years.  The following definitions derive the value of the
-       gravitational constant in this system of units from its handbook
-       definition in SI units. */
-
-    float G_SI = 6.6732e-11;            // (Newton Metre^2) / Kilogram^2
-    float AU = 149504094917.0;          // Metres / Astronomical unit
-    float M_SUN = 1.989e30;             // Kilograms / Mass of Sun
-    float YEAR = 31536000;              // Seconds / Year (365.0 * 24 * 60 * 60)
-
-    /*  From Newton's second law, F = ma,
-
-               Newton = kg m / sec^2
-
-        the fundamental units of the gravitational constant are:
-
-               G = N m^2 / kg^2
-                 = (kg m / sec^2) m^2 / kg^2
-                 = kg m^3 / sec^2 kg^2
-                 = m^3 / sec^2 kg
-
-        The conversion factor, therefore, between the SI gravitational
-        constant and its equivalent in our units is:
-
-               K = AU^3 / YEAR^2 M_SUN
-
-    */
-
-    float GRAV_CONV;                    // ((AU * AU * AU) / ((YEAR * YEAR) * M_SUN))
-
-    /*  And finally the gravitational constant itself is obtained by
-        dividing the SI definition by this conversion factor.  */
-
-    float GRAVCON;                      // (G_SI / GRAV_CONV)
-
-    /*  mParams entry:
-            0       Name
-            1       Position        Astronomical units (AU)
-            2       Velocity        AU / year
-            3       Mass            Solar masses
-            4       Colour          Colour (extended)
-            5       Radius          Mean radius (km)
-            6       DeployerPos     Region co-ordinates of deployer
-            7       MassKey         Key of mass object  */
-    integer mParamsE = 8;               // Mass parameters entry length
-    list mParams = [ ];                 // Mass parameters
+    //  Galactic centre sources present
+    integer gc_sources = 0;
 
     //  Settings communicated by deployer
     float s_kaboom = 50;                // Self destruct if this far (AU) from deployer
@@ -106,6 +60,7 @@
 
     float m_scalePlanet = 0.1;          // Scale of planet objects
     float m_scaleStar = 0.00133333;     // Scale of star objects
+    integer s_labels = FALSE;           // Show labels on objects
 
     //  These settings are not sent to the masses
     float s_deltat = 0.01;              // Integration time step
@@ -119,18 +74,15 @@
     float s_realstep = 30;              // Real time update interval, seconds
 
     integer stepNumber = 0;             // Step counter
-    float stepsize = 0.1;       // Motion step size factor
-//    float stepmin = 0.00001;    // Smallest step to use
-//float stepmin = 0.01;    // Smallest step to use
-float stepmin = 0.001; // INNER SYSTEM
     float simTime = 0;                  // Simulation time (years)
-float ldeltat;
-float collideDist = 0.0001;             // Criterion for declaring collision
 
     integer runmode = FALSE;            // Running the simulation ?
     float tickTime = 0.01;              // Simulation update time
     integer stepLimit = 0;              // Simulation step counter
     list simEpoch;                      // Simulation epoch (jd, jdf)
+    integer ev_updating = FALSE;        // Is an update in progress ?
+    float ev_stuck;                     // Timeout start for ev_updating
+    float ev_stuck_timeout = 2;         // Timeout interval for ev_updating
 
     //  Script Processor messages
 
@@ -148,6 +100,7 @@ float collideDist = 0.0001;             // Criterion for declaring collision
 
     integer LM_CP_COMMAND = 223;        // Process command
     integer LM_CP_RESUME = 225;         // Resume script after command
+    integer LM_CP_REMOVE = 226;         // Remove simulation objects
 
     //  Ephemeris calculator messages
 
@@ -158,16 +111,21 @@ float collideDist = 0.0001;             // Criterion for declaring collision
     //  Auxiliary services messages
 
     integer LM_AS_LEGEND = 541;         // Update floating text legend
+    integer LM_AS_SETTINGS = 542;       // Update settings
 
     //  Minor planet messages
 
     integer LM_MP_TRACK = 571;          // Notify tracking minor planet
 
-    //  Orbit messages
+    //  Galactic centre messages
 
-    integer LM_OR_PLOT = 601;           // Plot orbit for body
-    integer LM_OR_ELLIPSE = 602;        // Fit ellipse to body
-    integer LM_OR_STAT = 604;           // Print status
+//    integer LM_GC_UPDATE = 751;         // Update positions for Julian day
+    integer LM_GC_SOURCES = 752;        // Report number of sources
+
+    //  Galactic patrol messages
+
+    integer LM_GP_UPDATE = 771;         // Update positions for Julian day
+    integer LM_GP_STAT = 773;           // Report statistics
 
     //  tawk  --  Send a message to the interacting user in chat
 
@@ -195,21 +153,38 @@ float collideDist = 0.0001;             // Criterion for declaring collision
                           argument is ignored.  */
 
     sendSettings(key id, integer mass) {
-        string msg = llList2Json(JSON_ARRAY, [ "SETTINGS", mass,
-                            paths,
-                            trace,
-                            hf(s_kaboom),
-                            hf(s_auscale),
-                            hf(s_radscale),
-                            s_trails,
-                            hf(s_pwidth),
-                            hf(s_mindist)
-                      ]);
+        string msg = llList2Json(JSON_ARRAY, [
+                            "SETTINGS",         // 0
+                            mass,               // 1
+                            paths,              // 2
+                            trace,              // 3
+                            hf(s_kaboom),       // 4
+                            hf(s_auscale),      // 5
+                            hf(s_radscale),     // 6
+                            s_trails,           // 7
+                            hf(s_pwidth),       // 8
+                            hf(s_mindist),      // 9
+
+                            hf(s_deltat),       // 10
+                            s_eclipshown,       // 11
+                            hf(s_eclipsize),    // 12
+                            s_realtime,         // 13
+                            hf(s_realstep),     // 14
+                            hf(s_simRate),      // 15
+                            hf(s_stepRate),     // 16
+                            hf(s_zoffset),      // 17
+                            s_legend ] +        // 18
+                            simEpoch +          // 19,20
+                            s_labels            // 21
+                      );
         if (mass == 0) {
             llRegionSay(massChannel, msg);
         } else {
             llRegionSayTo(id, massChannel, msg);
         }
+        //  Inform other scripts in this object of new settings
+        llMessageLinked(LINK_THIS, LM_AS_SETTINGS, msg, whoDat);
+//tawk("Sent settings " + msg);
     }
 
     //  updateLegend  --  Update legend above deployer
@@ -218,13 +193,15 @@ float collideDist = 0.0001;             // Criterion for declaring collision
         if (s_legend) {
             llMessageLinked(LINK_THIS, LM_AS_LEGEND,
                 llList2Json(JSON_ARRAY, [
-                    llGetListLength(mParams) > 0,       // 0  Numerical integration ?
+                    planetsPresent == 0,                // 0  Numerical integration ?
                     simTime,                            // 1    Integration years
                     stepNumber,                         // 2    Step number
                                                         //    Planetary theory ?
                     (planetsPresent & (1 << 10) != 0),  // 3    Tracking minor planet ?
                     llList2String(solarSystem, 10) ] +  // 4    Name of minor planet, if any
-                    simEpoch                            // 5,6  Simulation epoch
+                    simEpoch +                          // 5,6  Simulation epoch
+                                                        //    Galactic centre sources ?
+                    [ gc_sources ]                      // 7    Number of sources
                 ), whoDat);
         }
     }
@@ -357,6 +334,21 @@ float collideDist = 0.0001;             // Criterion for declaring collision
                  r * llSin(b) >;
     }
 
+    //  sumJD  --  Compute sum of Julian date list with float duration
+
+    list sumJD(list jd, float dur) {
+        integer ajd = llList2Integer(jd, 0);    // Full days...
+        float ajdf = llList2Float(jd, 1);       // ...and day fraction
+        integer duri = llFloor(dur);
+        dur -= duri;
+        ajd += duri;
+        ajdf += dur;
+        integer ajdfi = llFloor(ajdf);
+        ajd += ajdfi;
+        ajdf -= ajdfi;
+        return [ ajd, ajdf ];
+    }
+
     /*  updateEphemeris  --  Update ephemeris for selected bodies.  This
                              simply initiates the update process, which is
                              performed asynchronously by the individual
@@ -452,32 +444,6 @@ ephCalcStart = llGetTime();
         return llStringTrim(llGetSubString(message, dindex, -1), STRING_TRIM);
     }
 
-    /*  fixArgs  --  Transform command arguments into canonical form.
-                     All white space within vector is elided so they
-                     will be parsed as single arguments.  */
-
-    string fixArgs(string cmd) {
-        cmd = llStringTrim(cmd, STRING_TRIM);
-        integer l = llStringLength(cmd);
-        integer inbrack = FALSE;
-        integer i;
-        string fcmd = "";
-
-        for (i = 0; i < l; i++) {
-            string c = llGetSubString(cmd, i, i);
-            if (inbrack && (c == ">")) {
-                inbrack = FALSE;
-            }
-            if (c == "<") {
-                inbrack = TRUE;
-            }
-            if (!((c == " ") && inbrack)) {
-                fcmd += c;
-            }
-        }
-        return fcmd;
-    }
-
     /*  pinterval  --  Parse an interval specification.
                        By default, an interval is in years,
                        but may be specified in other units
@@ -515,6 +481,8 @@ ephCalcStart = llGetTime();
         } else if (unit == "C") {
             interval *= 100;
         }
+
+//tawk("Pinterval (" + intv + ") = " + (string) interval);
         return interval;
     }
 
@@ -561,8 +529,7 @@ ephCalcStart = llGetTime();
             tawk(prefix + message);                 // Echo command to sender
         }
 
-//        string lmessage = llToLower(llStringTrim(message, STRING_TRIM));
-        string lmessage = fixArgs(llToLower(message));
+        string lmessage = llToLower(llStringTrim(message, STRING_TRIM));
         list args = llParseString2List(lmessage, [" "], []);    // Command and arguments
         integer argn = llGetListLength(args);       // Number of arguments
         string command = llList2String(args, 0);    // The command
@@ -591,7 +558,10 @@ ephCalcStart = llGetTime();
             //  Reset the script processor
             llMessageLinked(LINK_THIS, LM_SP_RESET, "", whoDat);
             llResetOtherScript("Minor Planets");
+            llResetOtherScript("Numerical Integration");
             llResetOtherScript("Orbits");
+            llResetOtherScript("Galactic Centre");
+            llResetOtherScript("Galactic Patrol");
 //  MAYBE SEND A LM_CP_BOOT TO MASS RESET EPHEMERIS SCRIPTS ?
             llResetScript();
 
@@ -674,6 +644,7 @@ ephCalcStart = llGetTime();
                 tawk("Usage: set date yyyy-mm-dd hh:mm:ss / jjjjjjjj.ffff");
                 return FALSE;
             } else {
+                sendSettings(NULL_KEY, 0);
                 updatePlanets();
             }
 
@@ -691,68 +662,14 @@ ephCalcStart = llGetTime();
                 }
             }
 
-        //  Mass name position velocity mass colour radius
-
-        } else if (abbrP(command, "ma")) {
-            if (runmode) {
-                tawk("Cannot add a mass while running.");
-                return FALSE;
-            }
-
-            string name = sparam;
-            vector where = (vector) llList2String(args, 2);
-
-            vector eggPos = llGetPos();
-            mParams += [ name, where, (vector) llList2String(args, 3),
-                         (float) llList2String(args, 4),
-                         /*  Note that we save the colour specification as a
-                             string rather than a vector, which allows
-                             passing our extended specification, including
-                             alpha and glow, to the mass once it is created.  */
-                         llList2String(args, 5),
-                         (float) llList2String(args, 6),
-                         eggPos + <0, 0, s_zoffset>,
-                         NULL_KEY               // We don't yet know the key
-                       ];
-
-            where = (where * s_auscale) + eggPos + <0, 0, s_zoffset>;
-            llSetRegionPos(where);
-            if (trace) {
-                tawk("Deploying " + name + " at " + (string) where);
-            }
-            llRezObject("Mass", where, ZERO_VECTOR,
-//                ZERO_ROTATION,
-llEuler2Rot(<PI_BY_TWO, 0, 0>),
-                llGetListLength(mParams) / mParamsE);
-            llSetRegionPos(eggPos);
-
         //  Orbit body [ segments/ellipse [ permanent ] ]
 
         } else if (abbrP(command, "or")) {
-            integer body = (integer) sparam;
-            integer segments = 96;
-            integer permanent = FALSE;
-            if (argn > 2) {
-                if (abbrP(llList2String(args, 2), "el")) {
-                    segments = -999;
-                } else {
-                    segments = llList2Integer(args, 2);
-                }
-                if (argn > 3) {
-                    permanent = abbrP(llList2String(args, 3), "pe");
-                }
-            }
-            if (segments == -999) {
-               llMessageLinked(LINK_THIS, LM_OR_ELLIPSE,
-                    llList2CSV([ body,  llList2Integer(simEpoch, 0),
-                                 llList2Float(simEpoch, 1), s_auscale,
-                                 llGetPos() + <0, 0, s_zoffset>, permanent ]), whoDat);
-            } else {
-                llMessageLinked(LINK_THIS, LM_OR_PLOT,
-                    llList2CSV([ body,  llList2Integer(simEpoch, 0),
-                                 llList2Float(simEpoch, 1), s_auscale, segments,
-                                 llGetPos() + <0, 0, s_zoffset>, permanent ]), whoDat);
-            }
+            llMessageLinked(LINK_THIS, LM_CP_COMMAND,
+                llList2Json(JSON_ARRAY,
+                    [ message, s_auscale, planetsPresent, gc_sources,
+                      llGetPos() + <0, 0, s_zoffset> ] +
+                      simEpoch), whoDat);
             scriptSuspend = TRUE;
 
         //  Planet
@@ -803,14 +720,16 @@ llEuler2Rot(<PI_BY_TWO, 0, 0>),
                     llEuler2Rot(<0, PI_BY_TWO, 0>), sp);
                 llSetRegionPos(eggPos);
             }
+            scriptSuspend = TRUE;
 
         //  Remove                  Remove all masses
 
         } else if (abbrP(command, "re")) {
             setRun(FALSE);
             llRegionSay(massChannel, llList2Json(JSON_ARRAY, [ ypres ]));
-            mParams = [ ];
             planetsPresent = 0;
+            gc_sources = 0;
+            llMessageLinked(LINK_THIS, LM_CP_REMOVE, "", whoDat);
             //  Reset step number and simulated time
             stepNumber = 0;
             simTime = 0;
@@ -819,27 +738,46 @@ llEuler2Rot(<PI_BY_TWO, 0, 0>),
         //  Run on/off              Start or stop the simulation
 
         } else if (abbrP(command, "ru")) {
-                stepLimit = 0;
-            if (argn < 2) {
-                setRun(!runmode);
+            stepLimit = 0;
+            if (planetsPresent || (gc_sources > 0)) {
+                if (argn < 2) {
+                    setRun(!runmode);
+                } else {
+                    setRun(onOff(sparam));
+                }
             } else {
-                setRun(onOff(sparam));
+                llMessageLinked(LINK_THIS, LM_CP_COMMAND,
+                    llList2Json(JSON_ARRAY, [ message, lmessage ] + args), whoDat);
             }
 
-        //     Handled by the Auxiliary Command Processor
+        //     Handled by Auxiliary Command Processors
         //  Asteroid                Set asteroid orbital elements
+        //  Centre                  Declare galactic central mass
         //  Clear                   Clear chat for debugging
         //  Comet                   Set comet orbital elements
         //  Help                    Request help notecards
+        //  Mass                    Define mass for numerical integration
         //  Script                  Script commands
+        //  Source                  Define galactic centre orbiting source
 
-        } else if (abbrP(command, "as") ||
+        } else if (
+                   abbrP(command, "ce") ||
                    abbrP(command, "cl") ||
-                   abbrP(command, "co") ||
                    abbrP(command, "he") ||
-                   abbrP(command, "sc")) {
+                   abbrP(command, "sc")
+                  ) {
             llMessageLinked(LINK_THIS, LM_CP_COMMAND,
                 llList2Json(JSON_ARRAY, [ message, lmessage ] + args), whoDat);
+        } else if (
+                   //   These are commands which suspend a script until completion
+                   abbrP(command, "as") ||
+                   abbrP(command, "co") ||
+                   abbrP(command, "ma") ||
+                   abbrP(command, "so")
+                  ) {
+            llMessageLinked(LINK_THIS, LM_CP_COMMAND,
+                llList2Json(JSON_ARRAY, [ message, lmessage ] + args), whoDat);
+            scriptSuspend = TRUE;
 
         //  Set                     Set simulation parameter
 
@@ -877,6 +815,7 @@ llEuler2Rot(<PI_BY_TWO, 0, 0>),
                         s_eclipshown = FALSE;
                     }
                 }
+                changedSettings = TRUE;
 
             //  Hide on/off/run         Hide/show the deployer
 
@@ -897,6 +836,12 @@ llEuler2Rot(<PI_BY_TWO, 0, 0>),
                 s_kaboom = value;
                 changedSettings = TRUE;
 
+            //  Labels on/off       Show/hide labels above masses
+
+            } else if (abbrP(sparam, "la")) {
+                s_labels = onOff(svalue);
+                changedSettings = TRUE;
+
             //  Legend on/off       Show/hide legend above deployer
 
             } else if (abbrP(sparam, "le")) {
@@ -908,9 +853,7 @@ llEuler2Rot(<PI_BY_TWO, 0, 0>),
                         PRIM_TEXT, "", <0, 0, 0>, 0
                     ]);
                 }
-
-            } else if (abbrP(sparam, "trac")) {
-                trace = onOff(svalue);
+                changedSettings = TRUE;
 
             //  Mindist n           Minimum distance to update masses
 
@@ -960,16 +903,19 @@ llEuler2Rot(<PI_BY_TWO, 0, 0>),
                 } else {
                     llSetTimerEvent(0);
                 }
+                changedSettings = TRUE;
 
             //  Simrate n           Simulation rate (years/second)
 
             } else if (abbrP(sparam, "si")) {
                 s_simRate = pinterval(svalue);
+                changedSettings = TRUE;
 
             //  Step n              Integration step rate (years/step)
 
             } else if (abbrP(sparam, "st")) {
                 s_stepRate = pinterval(svalue);
+                changedSettings = TRUE;
 
             //  Trace on/off        Trace operation
 
@@ -1006,9 +952,12 @@ llEuler2Rot(<PI_BY_TWO, 0, 0>),
                     (string) ((integer) llRound((mUsed * 100.0) / (mUsed + mFree))) + "%)"
             );
             llMessageLinked(LINK_THIS, LM_SP_STAT, "", whoDat);
+            /*  Many modules with an auxiliary command processor
+                handle the Status command within it.  */
             llMessageLinked(LINK_THIS, LM_CP_COMMAND,
                 llList2Json(JSON_ARRAY, [ "Status", "status" ] + args), whoDat);
-            llMessageLinked(LINK_THIS, LM_OR_STAT, "", whoDat);
+//            llMessageLinked(LINK_THIS, LM_OR_STAT, "", whoDat);
+            llMessageLinked(LINK_THIS, LM_GP_STAT, "", whoDat);
 
         //  Step n              Step simulation n times
 
@@ -1018,36 +967,24 @@ llEuler2Rot(<PI_BY_TWO, 0, 0>),
             if (n < 1) {
                 n = 1;
             }
-/*
-            integer i;
-float t0 = llGetTime();
-            for (i = 0; i < n; i++) {
-                if (trace) {
-                    tawk("- Step " + (string) (i + 1) + " -");
-                }
-                timeStep();
-            }
-float dt = llGetTime() - t0;
-            tawk("Done " + (string) n + " steps.");
-tawk("Run time: " + (string) dt);
-*/
             stepLimit = n;
-            setRun(TRUE);
+            if (planetsPresent || (gc_sources > 0)) {
+                setRun(TRUE);
+            } else {
+                llMessageLinked(LINK_THIS, LM_CP_COMMAND,
+                    llList2Json(JSON_ARRAY, [ message, lmessage ] + args), whoDat);
+            }
+            scriptSuspend = TRUE;
 
             //  Test what       Run a test
 
+/*
         } else if (abbrP(command, "te")) {
             if (abbrP(sparam, "ep")) {              // Test ephemeris
-/*
-                ephTask = "list";
-                tawk("Epoch " + (string) llList2Integer(simEpoch, 0) +
-                    llGetSubString((string) llList2Float(simEpoch, 1), 1, -1));
-                updateEphemeris((1 << 10) - 2,
-                    llList2Integer(simEpoch, 0), llList2Float(simEpoch, 1));
-*/
             } else {
                 tawk("Unknown test.");
             }
+*/
 
         } else {
             tawk("Huh?  \"" + message + "\" undefined.  Chat /" +
@@ -1063,6 +1000,7 @@ tawk("Run time: " + (string) dt);
         if (run != runmode) {
             runmode = run;
             if (runmode) {
+                ev_updating = FALSE;
                 llSetTimerEvent(tickTime);
                 if (hidden == 2) {
                     llSetAlpha(0, ALL_SIDES);
@@ -1076,161 +1014,6 @@ tawk("Run time: " + (string) dt);
         }
     }
 
-    //  timeStep  --  Run the simulation for one integration step
-
-    float timeStep(float deltat) {
-/*
-        integer i;
-        integer n = llGetListLength(mParams);
-        list accelN = [ ];
-        float mindist = 1e20;
-        float maxvel = -1;
-
-        //  Loop over masses
-        for (i = 0; i < n; i += mParamsE) {
-            vector ai = ZERO_VECTOR;
-            float mi = llList2Float(mParams, i + 3);    // Mass[i]
-            if (mi > 0) {
-                integer j;
-                vector pi = llList2Vector(mParams, i + 1);  // Position[i]
-                vector vi = llList2Vector(mParams, i + 2);  // Velocity[i]
-
-                //  Loop over peers of current mass...
-                for (j = 0; j < n; j += mParamsE) {
-                    if (i != j) {           // ...skipping itself, of course
-                        float mj = llList2Float(mParams, j + 3);        // Mass[i]
-                        if (mj > 0) {       // Ignore mass if destroyed by collision
-                            vector pj = llList2Vector(mParams, j + 1);  // Position[i]
-                            vector vj = llList2Vector(mParams, j + 2);  // Velocity[i]
-                            float r = llVecDist(pi, pj);        // Distance to mass
-                            if (r <= collideDist) {
-                                /*  When masses collide!  Send collision
-                                    messages to both masses.  *_/
-                                llRegionSayTo(llList2Key(mParams, i + 7), massChannel,
-                                    llList2Json(JSON_ARRAY, [ "COLLIDE",
-                                        i / mParamsE, j / mParamsE ]));
-                                llRegionSayTo(llList2Key(mParams, j + 7), massChannel,
-                                    llList2Json(JSON_ARRAY, [ "COLLIDE",
-                                        j / mParamsE, i / mParamsE ]));
-                                //  Zero out velocities and masses of both dear departed bodies
-                                mParams = llListReplaceList(mParams,
-                                    [ ZERO_VECTOR, 0.0 ], i + 2, i + 3);
-                                mParams = llListReplaceList(mParams,
-                                    [ ZERO_VECTOR, 0.0 ], j + 2, j + 3);
-                                //  Bail out processing this mass
-                                jump collided;
-                            }
-                            vector rv = llVecNorm(pj - pi);     // Direction of mass
-                            //  F = G (m1 m2) / r^2
-                            float force = (GRAVCON * (mi * mj)) / (r * r);
-                            //  F = ma, hence a = F/m
-                            float accel = force / mi;
-                            ai += rv * accel;                   // Gravitational force vector
-                            if (r < mindist) {
-                                mindist = r;                    // Minimum distance between masses
-                            }
-                        }
-                    }
-                    @collided;
-                }
-            }
-
-            /*  At this point, ai contains the net acceleration
-                produced by all other bodies upon this one.  We
-                save this in an auxiliary accelN array for
-                subsequent use in updating velocities.  *_/
-
-            accelN += ai;
-        }
-
-        /*  From the list of accelerations, we can now update
-            the velocities of the individual bodies.  But first,
-            we need to find the maximum velocity after applying
-            the acceleration.  This will allow us to adapt the
-            integration time step size (deltat) to avoid loss of
-            precision in high-velocity encounters.  The velocity
-            and acceleration of a mass destroyed in a collision
-            will both be zero, and will not influence this
-            computation.  *_/
-
-        integer a;
-        for (i = a = 0; i < n; i += mParamsE, a++) {
-            float pvel = llVecMag(llList2Vector(mParams, i + 2) +
-                                  llList2Vector(accelN, a));
-            if (pvel > maxvel) {
-                maxvel = pvel;
-            }
-        }
-
-        /*  Actually update the velocities, now that we know
-            deltat.  Since the velocity and acceleration of a
-            mass destroyed in a collision are zero, this will
-            do nothing for them.  */
-
-/*
-        deltat = stepsize * (mindist / maxvel);
-        if (deltat < stepmin) {
-            deltat = stepmin;
-        }
-*_/
-//  NEED TO CONSTRAIN BASED UPON MAXVEL
-        if (deltat < (stepsize * (mindist / maxvel))) {
-            deltat = stepsize * (mindist / maxvel);
-            if (deltat < stepmin) {
-                deltat = stepmin;
-            }
-        }
-
-if (trace) {
-    tawk("Deltat = " + (string) deltat + "  previous " + (string) ldeltat +
-        "  stepmin " + (string) stepmin);
-ldeltat = deltat;
-}
-        for (i = a = 0; i < n; i += mParamsE, a++) {
-            vector vi = llList2Vector(mParams, i + 2);  // Velocity[i]
-            vi += llList2Vector(accelN, a) * deltat;
-            mParams = llListReplaceList(mParams, [ vi ], i + 2, i + 2);
-        }
-
-        /*  And finally, with the velocities all updated, use
-            them and deltat to update the positions.  If the
-            mass has been destroyed in a collision, we skip
-            sending its update upon seeing that its mass has been
-            zeroed out.  *_/
-
-        stepNumber++;
-        simTime += deltat;
-        updateLegend();
-vector eggPos = llGetPos() + <0, 0, s_zoffset>;
-        for (i = a = 0; i < n; i += mParamsE, a++) {
-            if (llList2Float(mParams, i + 3) > 0) {
-                vector where = llList2Vector(mParams, i + 1) +
-                               (llList2Vector(mParams, i + 2) * deltat);
-                mParams = llListReplaceList(mParams,
-                    [ where ], i + 1, i + 1);
-
-                //  Send update to the mass object
-
-                vector rwhere  = (where * s_auscale) + eggPos;
-                llRegionSayTo(llList2Key(mParams, i + 7), massChannel,
-                    llList2Json(JSON_ARRAY, [ "UPDATE", a + 1,
-                        rwhere
-                ]));
-            }
-        }
-
-if (trace) {
-tawk("Simulation time: " + (string) simTime + " deltaT " + (string) deltat);
-for (i = 0; i < n; i += mParamsE) {
-    tawk("  " + llList2String(mParams, i) + "  "  +
-        (string) llList2Vector(mParams, i + 1) + "  " +
-        (string) llList2Vector(mParams, i + 2));
-}
-}
-        return deltat;                  // Return time actually stepped
-*/ return 0;
-    }
-
     default {
 
         on_rez(integer start_param) {
@@ -1240,10 +1023,6 @@ for (i = 0; i < n; i += mParamsE) {
         state_entry() {
             owner = llGetOwner();
             ownerName =  llKey2Name(owner);  //  Save name of owner
-
-            //  Initialise computed constants
-            GRAV_CONV = ((AU * AU * AU) / ((YEAR * YEAR) * M_SUN));
-            GRAVCON = G_SI / GRAV_CONV;
 
             llSetAlpha(1, ALL_SIDES);
 
@@ -1263,6 +1042,9 @@ updateEphemeris((1 << 10) - 2,
 
             //  Start listening on the mass channel
             massChH = llListen(massChannel, "", NULL_KEY, "");
+
+            //  Send initial settings to other scripts
+            sendSettings(NULL_KEY, 0);
         }
 
         /*  The listen event handler processes messages from
@@ -1275,33 +1057,6 @@ updateEphemeris((1 << 10) - 2,
                 list msg = llJson2List(message);
                 string ccmd = llList2String(msg, 0);
 
-                /*  When deployed and its script starts to run, each
-                    mass sends us a REZ message with its mass number
-                    and key.  This allows us to send it an INIT message
-                    containing, encoded in JSON, the parameters with
-                    which it should initialise itself.  */
-
-                if (ccmd == "REZ") {
-                    integer mass_number = llList2Integer(msg, 1);
-                    integer mindex = (mass_number - 1) * mParamsE;
-                    //  Save key of mass object in mParams
-                    mParams = llListReplaceList(mParams, [ id ],
-                        mindex + 7, mindex + 7);
-
-                    llRegionSayTo(id, massChannel,
-                        llList2Json(JSON_ARRAY, [ "INIT", mass_number,
-                        llList2String(mParams, mindex),                 // Name of body
-                        hv(llList2Vector(mParams, mindex + 1)),         // Initial position
-                        hv(llList2Vector(mParams, mindex + 2)),         // Initial velocity
-                        hf(llList2Float(mParams, mindex + 3)),          // Mass
-                        llList2String(mParams, mindex + 4),             // Colour (extended)
-                        hf(llList2Float(mParams, mindex + 5)),          // Mean radius
-                        hv(llList2Vector(mParams, mindex + 6))          // Deployer position
-                    ]));
-
-                    //  Send initial settings
-                    sendSettings(id, mass_number);
-
                 /*  When a solar system body has been rezzed and is up
                     and running, its script sends a PLANTED message
                     communicating its key.  We respond with a PINIT
@@ -1310,7 +1065,7 @@ updateEphemeris((1 << 10) - 2,
                     We then send the initial settings, which may be
                     updated as we're running.  */
 
-                } else if (ccmd == "PLANTED") {
+                if (ccmd == "PLANTED") {
                     integer mass_number = llList2Integer(msg, 1);
                     planetKeys = llListReplaceList(planetKeys, [ id ],
                         mass_number, mass_number);
@@ -1329,6 +1084,14 @@ updateEphemeris((1 << 10) - 2,
                     //  Send initial settings
                     sendSettings(id, mass_number);
 //tawk("Planted body " + (string) mass_number + "  keys " + llList2CSV(planetKeys) + "  present " + (string) planetsPresent);
+                    //  Resume deployer script, if suspended
+                    llMessageLinked(LINK_THIS, LM_CP_RESUME, "", whoDat);
+
+                /*  When the last source completes updating, it sends the
+                    UPDATED message as an "all clear", informing us we're
+                    allowed to send another update.  */
+                } else if (ccmd == "UPDATED") {
+                    ev_updating = FALSE;
                 }
             } else {
                 processCommand(id, message, FALSE);
@@ -1390,11 +1153,6 @@ updateEphemeris((1 << 10) - 2,
 
             } else if (num == LM_EP_RESULT) {
                list l = llCSV2List(str);
-/*               tawk("Body " + (string) llList2Integer(l, 0) +
-                    "  L " + (string) (RAD_TO_DEG * llList2Float(l, 1))  +
-                    "  B " + (string) (RAD_TO_DEG * llList2Float(l, 2))  +
-                    "  R " + (string) llList2Float(l, 3)); */
-
                 integer handle = llList2Integer(l, 4);
                 if (handle == ephHandle) {
                     integer body = llList2Integer(l, 0);
@@ -1463,21 +1221,19 @@ updateEphemeris((1 << 10) - 2,
                 list args = llJson2List(str);
                 if (llList2Integer(args, 0)) {
                     string m_name = llList2String(args, 1);
-tawk("Now tracking minor planet (" + m_name + ")");
+//tawk("Now tracking minor planet (" + m_name + ")");
                     planetsPresent = planetsPresent | (1 << 10);
                     solarSystem = llListReplaceList(solarSystem, [ m_name ], 10, 10);
-
-                    vector eggPos = llGetPos();
-                    vector where = ZERO_VECTOR; // Adjusted once co-ordinates arrive
-                    where = (where * s_auscale) + eggPos + <0, 0, s_zoffset>;
+/*
                     if (trace) {
                         tawk("Deploying " + str + " at " + (string) where);
                     }
+*/
                     string bname = "Comet";
                     if (llList2Integer(args, 3)) {
                         bname = "Asteroid";
                     }
-                    llRezObject("S: " + bname, where, ZERO_VECTOR,
+                    llRezObject("S: " + bname, llGetPos() + <0, 0, s_zoffset>, ZERO_VECTOR,
                         llEuler2Rot(<0, PI_BY_TWO, 0>), 10);
                 } else {
                     //  Dropping tracking of current object
@@ -1490,6 +1246,12 @@ tawk("Now tracking minor planet (" + m_name + ")");
                     }
                 }
                 updatePlanets();
+
+            //  LM_GC_SOURCES (752): Modeling galactic centre
+
+            } else if (num == LM_GC_SOURCES) {
+                gc_sources = (integer) str;
+                ev_updating = FALSE;
             }
         }
 
@@ -1497,54 +1259,56 @@ tawk("Now tracking minor planet (" + m_name + ")");
 
         timer() {
 //tawk("Timer  real " + (string) s_realtime);
+            if (ev_updating) {
+//tawk("Deferred update: objects still moving.");
+                if (ev_stuck == 0) {
+                    ev_stuck = llGetTime();
+                    return;
+                } else if ((llGetTime() - ev_stuck) > ev_stuck_timeout) {
+tawk("Galactic centre stuck after " + (string) (llGetTime() - ev_stuck) + ".  Restarting.");
+                    ev_updating = 0;
+                } else {
+                    return;
+                }
+            }
+            ev_stuck = 0;
             if (s_realtime) {
                 simEpoch = jdstamp(llGetTimestamp());
-                updatePlanets();
+                if (gc_sources > 0) {
+                    llMessageLinked(LINK_THIS, LM_GP_UPDATE,
+                        llList2CSV(simEpoch), whoDat);
+                    ev_updating = TRUE;
+                    updateLegend();
+                } else {
+                    updatePlanets();
+                }
                 stepNumber++;
             } else if (runmode) {
 //tawk("Tick...");
-                //  Are we performing numerical integration ?
-                integer numInt = llGetListLength(mParams) > 0;
 float tstart = llGetTime();
-                float timeToStep = s_stepRate;
 integer nsteps = 0;
-                while (timeToStep > 0) {
-                    if (numInt) {
-                        /*  Numerical integration: perform one integration
-                            step, with the possibility that the integrator
-                            may take a smaller step than requested due to
-                            large velocities and/or accelerations among
-                            bodies.  */
-                        float timeStepped = timeStep(timeToStep);
-                        timeToStep -= timeStepped;
-                        nsteps++;
-                    } else {
-                        /*  Analytical planetary theory: we always get the
-                            answer immediately calculation-wise, but not in
-                            real time, as we must wait for the individual
-                            evaluators to reply.  */
-                        integer simjd = llList2Integer(simEpoch, 0);
-                        float simjdf = llList2Float(simEpoch, 1);
-                        //  Update simulated time, propagating whole numbers from fraction
-                        simjdf += s_stepRate * 365.25;
-                        integer jdfi = llFloor(simjdf);
-                        simjd += jdfi;
-                        simjdf -= jdfi;
-                        simEpoch = [ simjd, simjdf ];
-                        updatePlanets();
-                        timeToStep = 0;         // Analytical planetary theory always gets it in one
-                        nsteps++;
-                        stepNumber++;
-                    }
+                /*  Analytical planetary theory: we always get the
+                    answer immediately calculation-wise, but not in
+                    real time, as we must wait for the individual
+                    evaluators to reply.  */
+                simEpoch = sumJD(simEpoch, s_stepRate * 365.25);
+                if (gc_sources > 0) {
+                    llMessageLinked(LINK_THIS, LM_GP_UPDATE,
+                        llList2CSV(simEpoch), whoDat);
+                    ev_updating = TRUE;
+                    updateLegend();
+                } else {
+                    updatePlanets();
                 }
+                nsteps++;
+                stepNumber++;
+
                 float tcomp = llGetTime() - tstart;
-                if (nsteps > 1) {
-                    tawk("Update took " + (string) nsteps + " steps.");
-                }
                 if (stepLimit > 0) {
                     stepLimit--;
                     if (stepLimit <= 0) {
                         setRun(FALSE);
+                        scriptResume();
 tawk("Stopped.");
                     }
                 }
