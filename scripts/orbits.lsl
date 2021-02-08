@@ -23,22 +23,23 @@
             0   Orbital period (days)
             1   Eccentricity
             2   Semi-major axis (AU)
+            3   Name
     */
 
     list bodies = [
-        0, 0, 0,                                // Sun
-        87.9691, 0.20563069, 0.38709893,        // Mercury
-        224.701, 0.00677323, 0.72333199,        // Venus
-        365.256363004, 0.01671022, 1.00000011,  // Earth
-        686.971, 0.09341233, 1.52366231,        // Mars
-        4332.59, 0.04839266, 5.20336301,        // Jupiter
-        10759.22, 0.05415060, 9.53707032,       // Saturn
-        30688.5, 0.04716771, 19.19126393,       // Uranus
-        60182.0, 0.00858587, 30.06896348,       // Neptune
-        90560.0, 0.24880766, 39.48168677,       // Pluto
-        -1.0, 0, 0                              // Minor planet being tracked
+        0, 0, 0,                                        "Sun",
+        87.9691, 0.20563069, 0.38709893,                "Mercury",
+        224.701, 0.00677323, 0.72333199,                "Venus",
+        365.256363004, 0.01671022, 1.00000011,          "Earth",
+        686.971, 0.09341233, 1.52366231,                "Mars",
+        4332.59, 0.04839266, 5.20336301,                "Jupiter",
+        10759.22, 0.05415060, 9.53707032,               "Saturn",
+        30688.5, 0.04716771, 19.19126393,               "Uranus",
+        60182.0, 0.00858587, 30.06896348,               "Neptune",
+        90487.2769, 0.2502487, 39.4450697,              "Pluto",
+        -1.0, 0, 0, "??MP??"                            // Minor planet tracked
     ];
-    integer bodiesE = 3;            // Length of bodies entry
+    integer bodiesE = 4;            // Length of bodies entry
 
     //  Parameters for current orbit plotting task
 
@@ -61,7 +62,9 @@
 
     //  Command processor messages
 
+    integer LM_CP_COMMAND = 223;        // Process command
     integer LM_CP_RESUME = 225;         // Resume script after command
+//    integer LM_CP_REMOVE = 226;         // Remove simulation objects
 
     //  Ephemeris calculator messages
 
@@ -77,7 +80,8 @@
     integer LM_OR_PLOT = 601;           // Plot orbit for body
     integer LM_OR_ELLIPSE = 602;        // Fit ellipse to body
     integer LM_OR_ELEMENTS = 603;       // Orbital elements for ellipse object
-    integer LM_OR_STAT = 604;           // Print status
+//    integer LM_OR_STAT = 604;           // Print status
+    integer LM_OR_DRAW = 605;           // Draw a line of an orbit
 
     //  tawk  --  Send a message to the interacting user in chat
 
@@ -175,7 +179,8 @@
         2455636, 0.936, 4332, 0.897065, 0.0001367,      // Jupiter
         2452830, 0.12, 10764, 0.21676, 0.000827,        // Saturn
         2470213, 0.5, 30694, 0.8767, -0.00541,          // Uranus
-        2468895, 0.1, 60190, 0.33, 0.03429              // Neptune
+        2468895, 0.1, 60190, 0.33, 0.03429,             // Neptune
+        2447654, 0.5293, 90487, 0.276927, 0             // Pluto
     ];
 
     list apsK = [               // k value from year and decimal
@@ -186,7 +191,8 @@
         0.0843, 2011.2,                                 // Jupiter
         0.03393, 2003.52,                               // Saturn
         0.0119, 2051.1,                                 // Uranus
-        0.00607, 2047.5                                 // Neptune
+        0.00607, 2047.5,                                // Neptune
+        0.004036, 1989.3478                             // Pluto
     ];
 
     list apsides(integer body, float year, integer apoapsis) {
@@ -292,6 +298,7 @@
                  r * llSin(b) >;
     }
 
+/*
     //  markerBall  --  Place a marker ball
 
     markerBall(vector where, float diameter, vector colour) {
@@ -302,6 +309,7 @@
         flRezRegion("Marker ball", where,
                     ZERO_VECTOR, ZERO_ROTATION, sparam);
     }
+*/
 
     //  createOrbitEllipse  --  Create an orbit ellipse object
 
@@ -317,18 +325,15 @@
         vector m_apoapse = (vector) llList2String(el, 3);
         float m_a = llList2Float(el, 4);
         float m_e = llList2Float(el, 5);
-//        float m_i = llList2Float(el, 6);
-//        float m_peri = llList2Float(el, 7);
-//        float m_node = llList2Float(el, 8);
-        float s_auscale = llList2Float(el, 9);
-        vector m_covertex = (vector) llList2String(el, 10);
+        float s_auscale = llList2Float(el, 6);
+        vector m_covertex = (vector) llList2String(el, 7);
 
         //  Parameters derived from elements
 
         vector c_centre = (m_periapse + m_apoapse) / 2; // Centre point
         float c_b = m_a * llSqrt(1 - (m_e * m_e));      // Semi-minor axis
-        vector c_plnorm = llVecNorm(m_periapse - c_centre) %    // Normal to orbital plane
-            llVecNorm(m_covertex - c_centre);
+//        vector c_plnorm = llVecNorm(m_periapse - c_centre) %    // Normal to orbital plane
+//            llVecNorm(m_covertex - c_centre);
 
 //  Mark periapse, apoapse, co-vertex, centre, and normal
 //markerBall(m_periapse, 0.1, <1, 0.25, 0.25>);       // Periapse: red
@@ -359,7 +364,7 @@
             There may be a far simpler one- or two-liner which
             does the same thing, but so far it has eluded me.  */
 
-        vector c_rup = llRot2Up(c_rotation);            // Normal vector after apsides alignment
+//        vector c_rup = llRot2Up(c_rotation);            // Normal vector after apsides alignment
         vector c_left = llRot2Left(c_rotation);         // Local Y axis after apsides alignment
 //markerBall(c_centre + (c_left * (c_b * s_auscale)), 0.1, <0.5, 0.5, 0.5>);
         // Vector from centre to covertex on orbit
@@ -393,6 +398,130 @@
         llMessageLinked(LINK_THIS, LM_CP_RESUME, "", whoDat);
     }
 
+    /*  fixQuotes  --   Adjacent arguments bounded by those
+                        beginning and ending with quotes (") are
+                        concatenated into single arguments with
+                        the quotes elided.  */
+
+    list fixQuotes(list args) {
+        integer i;
+        integer n = llGetListLength(args);
+
+        for (i = 0; i < n; i++) {
+            string arg = llList2String(args, i);
+            if (llGetSubString(arg, 0, 0) == "\"") {
+                /*  Argument begins with a quote.  If it ends with one,
+                    strip them and we're done.  */
+                if (llGetSubString(arg, -1, -1) == "\"") {
+                    args = llListReplaceList(args,
+                        [ llGetSubString(arg, 1, -2) ], i, i);
+                } else {
+                    /*  Concatenate arguments until we find one that ends
+                        with a quote, then replace the multiple arguments
+                        with the concatenation.  */
+                    string rarg = llGetSubString(arg, 1, -1);
+                    integer looking = TRUE;
+                    integer j;
+
+                    for (j = i + 1; looking && (j < n); j++) {
+                        string narg = llList2String(args, j);
+                        if (llGetSubString(narg, -1, -1) == "\"") {
+                            rarg += " " + llGetSubString(narg, 0, -2);
+                            looking = FALSE;
+                        } else {
+                            rarg += " " + narg;
+                        }
+                    }
+                    if (!looking) {
+                        args = llListReplaceList(args, [ rarg ], i, j - 1);
+                    }
+                }
+            }
+        }
+        return args;
+    }
+
+    //  abbrP  --  Test if string matches abbreviation
+
+    integer abbrP(string str, string abbr) {
+        return abbr == llGetSubString(str, 0, llStringLength(abbr) - 1);
+    }
+
+    //  processAuxCommand  --  Process a command
+
+    integer processAuxCommand(key id, list oparams) {
+
+        whoDat = id;            // Direct chat output to sender of command
+
+        string message = llList2String(oparams, 0);
+        list args = llParseString2List(llToLower(message), [ " " ], []);
+        string command = llList2String(args, 0);    // The command
+
+        //  Orbit body [ segments/ellipse [ permanent ] ]
+
+        if (abbrP(command, "or")) {
+            float s_auscale = llList2Float(oparams, 1);
+            integer planetsPresent = llList2Integer(oparams, 2);
+            integer gc_sources = llList2Integer(oparams, 3);
+            vector deployerPos = (vector) llList2String(oparams, 4);
+            list simEpoch = llList2List(oparams, 5, 6);
+
+            //  Re-process arguments to preserve case and strings
+            args = fixQuotes(llParseString2List(message, [ " " ], []));
+            integer argn = llGetListLength(args);
+
+            string body = llList2String(args, 1);
+            /*  If we are displaying the Solar System model, allow the
+                user to specify the name of the object, including a minor
+                planet being tracked, by its (full and exact) name as
+                well as number.  Note how we cleverly exclude the Sun
+                along with no-find results.  */
+            if (planetsPresent) {
+                integer p = llListFindList(bodies, [ body ]);
+                if (p > bodiesE) {
+                    body = (string) ((p - 3) / bodiesE);
+                }
+            }
+
+            integer segments = 96;
+            integer permanent = FALSE;
+            if (argn > 2) {
+                if (abbrP(llToLower(llList2String(args, 2)), "el")) {
+                    segments = -999;
+                } else {
+                    segments = llList2Integer(args, 2);
+                }
+                if (argn > 3) {
+                    permanent = abbrP(llToLower(llList2String(args, 3)), "pe");
+                }
+            }
+            if (segments == -999) {
+               llMessageLinked(LINK_THIS, LM_OR_ELLIPSE,
+                    llList2CSV([ body,  llList2Integer(simEpoch, 0),
+                                 llList2Float(simEpoch, 1), s_auscale,
+                                 deployerPos, permanent ]), whoDat);
+            } else {
+                llMessageLinked(LINK_THIS, LM_OR_PLOT,
+                    llList2CSV([ body,  llList2Integer(simEpoch, 0),
+                                 llList2Float(simEpoch, 1), s_auscale, segments,
+                                 deployerPos, permanent ]), whoDat);
+            }
+
+        //  Status
+
+        } else if (abbrP(command, "sta")) {
+            string s = llGetScriptName() + " status:\n";
+
+            integer mFree = llGetFreeMemory();
+            integer mUsed = llGetUsedMemory();
+            s += "  Script memory.  Free: " + (string) mFree +
+                    "  Used: " + (string) mUsed + " (" +
+                    (string) ((integer) llRound((mUsed * 100.0) / (mUsed + mFree))) + "%)";
+            tawk(s);
+        }
+        return TRUE;
+    }
+
     default {
 
         on_rez(integer start_param) {
@@ -409,9 +538,14 @@
 
         link_message(integer sender, integer num, string str, key id) {
 
+            //  LM_CP_COMMAND (223): Process auxiliary command
+
+            if (num == LM_CP_COMMAND) {
+                processAuxCommand(id, llJson2List(str));
+
             //  LM_OR_PLOT (601): Plot orbit
 
-            if (num == LM_OR_PLOT) {
+            } else if (num == LM_OR_PLOT) {
                 list l = llCSV2List(str);
 //tawk("Plot " + str);
                 o_body = llList2Integer(l, 0);      // Body
@@ -442,20 +576,6 @@
 //tawk("Start calc " + llList2CSV([ o_parahyper, o_jd, o_jdf, o_timestep ] + mp_peri));
                 llMessageLinked(LINK_THIS, LM_EP_CALC,
                     llList2CSV([ 1 << o_body, o_jd, o_jdf, ephHandle ]), id);
-
-            //  LM_OR_STAT (604): Print status
-
-            } else if (num == LM_OR_STAT) {
-                string s = llGetScriptName() + " status:\n";
-
-                integer mFree = llGetFreeMemory();
-                integer mUsed = llGetUsedMemory();
-                s += "  Script memory.  Free: " + (string) mFree +
-                        "  Used: " + (string) mUsed + " (" +
-                        (string) ((integer) llRound((mUsed * 100.0) / (mUsed + mFree))) + "%)";
-                tawk(s);
-//tawk("Venus perihelion " + llList2CSV(apsides(2, 1978.79, FALSE)));
-//tawk("Mars aphelion " + llList2CSV(apsides(4, 2032.5, TRUE)));
 
             //  LM_EP_RESULT (432): Ephemeris calculation results
 
@@ -488,23 +608,34 @@
                     }
                     o_csegment++;
                     o_olast = rwhere;
-if (o_parahyper &&
-    (((llVecDist(rwhere, o_sunpos) / o_auscale) > o_aulimit) ||
-     (o_csegment > o_nsegments))) {
-    if (o_arm > 0) {
-tawk("Done with open orbit.");
-        llMessageLinked(LINK_THIS, LM_CP_RESUME, "", id);
-    } else {
-        o_arm++;
-        o_jd = llList2Integer(mp_peri, 0);
-        o_jdf = llList2Float(mp_peri, 1);
-        o_csegment = 0;
-        o_timestep = -o_timestep;
-        llMessageLinked(LINK_THIS, LM_EP_CALC,
-            llList2CSV([ 1 << o_body, o_jd, o_jdf, ephHandle ]), id);
-    }
-    return;
-}
+
+                    /*  If the orbit is parabolic or hyperbolic, stop
+                        plotting it after we've either hit the maximum
+                        number of segments or the specified o_aulimit,
+                        which specifies the maximum distance we'll plot
+                        from the central body.  If we've just finished
+                        with the ougoing arm of the orbit, restart to
+                        plot in incoming arm.  Otherwise, we're done
+                        with this open orbit.  */
+
+                    if (o_parahyper &&
+                        (((llVecDist(rwhere, o_sunpos) / o_auscale) > o_aulimit) ||
+                         (o_csegment > o_nsegments))) {
+                        if (o_arm > 0) {
+//tawk("Done with open orbit.");
+                            llMessageLinked(LINK_THIS, LM_CP_RESUME, "", id);
+                        } else {
+                            o_arm++;
+                            o_jd = llList2Integer(mp_peri, 0);
+                            o_jdf = llList2Float(mp_peri, 1);
+                            o_csegment = 0;
+                            o_timestep = -o_timestep;
+                            llMessageLinked(LINK_THIS, LM_EP_CALC,
+                                llList2CSV([ 1 << o_body, o_jd, o_jdf, ephHandle ]), id);
+                        }
+                        return;
+                    }
+
                     if (o_csegment <= o_nsegments) {
                         o_jdf += o_timestep;
                         integer jdfi = llFloor(o_jdf);
@@ -525,6 +656,11 @@ tawk("Done with open orbit.");
                         llMessageLinked(LINK_THIS, LM_CP_RESUME, "", id);
                     }
                 } else if (ephHandleEll == llList2Integer(l, -1)) {
+                    /*  We're fitting an ellipse to the body's orbit
+                        and have just received the body's periapse,
+                        apoapse, and co-vertex location from its
+                        ephemeris calculator.  Now we're ready to
+                        create the ellipse to display the orbit.  */
                     integer body = llList2Integer(l, 0);        // Body
                     vector wXYZ = sphRect(llList2Float(l, 1),   // Peri L
                                           llList2Float(l, 2),   // Peri B
@@ -545,14 +681,12 @@ tawk("Done with open orbit.");
                         aXYZr,                      // 3    Apoapse location
                         llList2Float(bodies, (body * bodiesE) + 2), // 4    Semi-major axis
                         llList2Float(bodies, (body * bodiesE) + 1), // 5    Eccentricity
-                    0,    // 6    Inclination
-                    0,    // 7    Argument of periapse
-                    0,    // 8    Longitude of ascending node
-                        o_auscale,                  // 9    Astronomical unit scale factor
-                        cXYZr                       // 10   Co-vertex location
+                        o_auscale,                  // 6    Astronomical unit scale factor
+                        cXYZr                       // 7    Co-vertex location
                     ]);
-//tawk("Mars replies!  " + ellargs);
+//tawk("createOrbitEllipse  " + ellargs);
                     createOrbitEllipse(ellargs);
+                    llMessageLinked(LINK_THIS, LM_CP_RESUME, "", id);
                }
 
             //  LM_MP_TRACK (571): Tracking minor planet
@@ -565,8 +699,12 @@ tawk("Done with open orbit.");
 //tawk("Track: " + llList2CSV(args));
                 if (llList2Integer(args, 0)) {
                     integer bx = 10 * bodiesE;
-                    bodies = llListReplaceList(bodies, [ llList2Float(args, 2) ],
-                        bx, bx);
+                    //  Plug the tracked body's period and name into the bodies list
+                    bodies = llListReplaceList(bodies,
+                        [ llList2Float(args, 2) ] +
+                        llList2List(bodies, bx + 1, bx + 2) +
+                        [ llList2String(args, 1) ],
+                        bx, bx + 3);
                     //  "NaN" is a non-standard extension to JSON: allow for sloppiness
                     if ((o_parahyper = llToLower(llList2String(args, 2)) == "nan")) {
                         mp_peri = llList2List(args, 4, 5);
@@ -587,9 +725,9 @@ tawk("Done with open orbit.");
                 list l = llCSV2List(str);
                 integer body = llList2Integer(l, 0);
                 if (body != 10) {           // We don't handle minor planets here
-tawk("Orbits: ellipse " + str);
-                    integer o_jd = llList2Integer(l, 1);            // Julian day
-                    float o_jdf = llList2Float(l, 2);               // Julian day fraction
+//tawk("Orbits: ellipse " + str);
+                    o_jd = llList2Integer(l, 1);                    // Julian day
+                    o_jdf = llList2Float(l, 2);                     // Julian day fraction
                     o_auscale = llList2Float(l, 3);                 // Astronomical unit scale factor
                     o_sunpos = (vector) llList2String(l, 4);        // Position of Sun
 
@@ -611,68 +749,26 @@ tawk("Orbits: ellipse " + str);
                     list dCvtx = sumJD(dPeri,
                                         m_P * (0.25 - (m_e / TWO_PI)));
                     list ephreq = [ 1 << body ] + dPeri + dApo + dCvtx + [ ephHandleEll ];
-tawk("ephreq: " + llList2CSV(ephreq));
+//tawk("ephreq: " + llList2CSV(ephreq));
                     llMessageLinked(LINK_THIS, LM_EP_CALC,
                         llList2CSV(ephreq), id);
-
-/*
-                    //  Compute the location of the periapse
-
-                    list periLBR =  posMP(llList2Integer(s_elem, 11),
-                                          llList2Float(s_elem, 12));
-                    vector wXYZ = sphRect(llList2Float(periLBR, 0),
-                                          llList2Float(periLBR, 1),
-                                          llList2Float(periLBR, 2));
-                    vector pXYZr = (wXYZ * o_auscale) + o_sunpos;
-//tawk("Periapse location: " + (string) pXYZr);
-
-                    //  Compute the location of the apoapse
-
-                    list pjd = sumJD(llList2List(s_elem, 11, 12),
-                                     llList2Float(s_elem, 15) / 2);
-                    list apoLBR = posMP(llList2Integer(pjd, 0),
-                                        llList2Float(pjd, 1));
-                    wXYZ = sphRect(llList2Float(apoLBR, 0),
-                                   llList2Float(apoLBR, 1),
-                                   llList2Float(apoLBR, 2));
-                    vector aXYZr = (wXYZ * o_auscale) + o_sunpos;
-//tawk("Apoapse location: " + (string) aXYZr);
-
-                    //  Compute the location of a co-vertex of the ellipse:
-                    //  cjd = peri_date + (orbital_period *
-                    //                     (0.25 - eccentricity / (2 * Pi)))
-                    list cjd = sumJD(llList2List(s_elem, 11, 12),
-                                        llList2Float(s_elem, 15) *
-                                        (0.25 - (llList2Float(s_elem, 4) / TWO_PI)));
-                    list cvxLBR = posMP(llList2Integer(cjd, 0),
-                                        llList2Float(cjd, 1));
-                    wXYZ = sphRect(llList2Float(cvxLBR, 0),
-                                   llList2Float(cvxLBR, 1),
-                                   llList2Float(cvxLBR, 2));
-                    vector cXYZr = (wXYZ * o_auscale) + o_sunpos;
-//tawk("Co-vertex location: " + (string) aXYZr);
-
-                    llMessageLinked(LINK_THIS, LM_OR_ELEMENTS,
-                        llList2Json(JSON_ARRAY, [
-                            BODY,                       // 0    Body number
-                            llList2String(s_elem, 0),   // 1    Body name
-                            pXYZr,                      // 2    Periapse location
-                            aXYZr,                      // 3    Apoapse location
-                            llList2Float(s_elem, 3),    // 4    Semi-major axis
-                            llList2Float(s_elem, 4),    // 5    Eccentricity
-                            llList2Float(s_elem, 5),    // 6    Inclination
-                            llList2Float(s_elem, 6),    // 7    Argument of periapse
-                            llList2Float(s_elem, 7),    // 8    Longitude of ascending node
-                            o_auscale,                  // 9    Astronomical unit scale factor
-                            cXYZr                       // 10   Co-vertex location
-                        ]), whoDat);
-                */
                 }
 
             //  LM_OR_ELEMENTS (603): Orbital elements for ellipse object
 
             } else if (num == LM_OR_ELEMENTS) {
                 createOrbitEllipse(str);
+
+            //  LM_OR_DRAW (605): Draw a line of an orbit
+
+            } else if (num == LM_OR_DRAW) {
+                list l = llCSV2List(str);
+
+                flPlotPerm = llList2Integer(l, 4);
+                flPlotLine((vector) llList2String(l, 0),
+                           (vector) llList2String(l, 1),
+                           (vector) llList2String(l, 2),
+                           llList2Float(l, 3));
             }
         }
 
@@ -689,7 +785,7 @@ tawk("ephreq: " + llList2CSV(ephreq));
                     integer i;
                     integer n = llGetListLength(orbitParams);
 
-tawk("ORBITAL request for mass " + (string) m_index);
+//tawk("ORBITAL request for mass " + (string) m_index);
                     for (i = 0; i < n; i += orbitParamsE) {
                         if (llList2Integer(orbitParams, i) == m_index) {
                             llRegionSayTo(id, massChannel,
