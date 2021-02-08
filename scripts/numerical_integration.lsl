@@ -80,7 +80,7 @@
     float s_realstep = 30;              // Real time update interval, seconds
 
 
-    integer trace = FALSE;              // Trace mass behaviour
+    integer s_trace = FALSE;            // Trace mass behaviour
     integer paths = FALSE;              // Show particle trails from masss ?
 
     integer stepNumber = 0;             // Step counter
@@ -97,15 +97,18 @@ float collideDist = 0.0001;             // Criterion for declaring collision
     integer stepLimit = 0;              // Simulation step counter
     list simEpoch;                      // Simulation epoch (jd, jdf)
 
-
     //  Link messages
 
     //  Command processor messages
+
     integer LM_CP_COMMAND = 223;    // Process command
+    integer LM_CP_RESUME = 225;         // Resume script after command
+    integer LM_CP_REMOVE = 226;         // Remove simulation objects
 
     //  Auxiliary services messages
 
     integer LM_AS_LEGEND = 541;         // Update floating text legend
+    integer LM_AS_SETTINGS = 542;       // Update settings
 
     //  tawk  --  Send a message to the interacting user in chat
 
@@ -280,7 +283,11 @@ float collideDist = 0.0001;             // Criterion for declaring collision
                 return FALSE;
             }
 
-            string name = sparam;
+            //  Re-parse command to handle quotes and preserve letter case
+            args = fixQuotes(llParseString2List(fixArgs(message), [ " " ], []));
+            argn = llGetListLength(args);       // Number of arguments
+
+            string name = llList2String(args, 1);
             vector where = (vector) llList2String(args, 2);
 
             vector eggPos = llGetPos();
@@ -298,7 +305,7 @@ float collideDist = 0.0001;             // Criterion for declaring collision
 
             where = (where * s_auscale) + eggPos + <0, 0, s_zoffset>;
             llSetRegionPos(where);
-            if (trace) {
+            if (s_trace) {
                 tawk("Deploying " + name + " at " + (string) where);
             }
             llRezObject("Mass", where, ZERO_VECTOR,
@@ -360,7 +367,10 @@ llEuler2Rot(<PI_BY_TWO, 0, 0>),
         if (run != runmode) {
             runmode = run;
             if (runmode) {
+/*
                 llSetTimerEvent(tickTime);
+*/
+llSetTimerEvent(s_simRate);
             } else {
                 llSetTimerEvent(0);
             }
@@ -393,7 +403,7 @@ llEuler2Rot(<PI_BY_TWO, 0, 0>),
     sendSettings(key id, integer mass) {
         string msg = llList2Json(JSON_ARRAY, [ "SETTINGS", mass,
                             paths,
-                            trace,
+                            s_trace,
                             hf(s_kaboom),
                             hf(s_auscale),
                             hf(s_radscale),
@@ -505,6 +515,7 @@ llEuler2Rot(<PI_BY_TWO, 0, 0>),
         }
 */
 //  NEED TO CONSTRAIN BASED UPON MAXVEL
+/*
         if (deltat < (stepsize * (mindist / maxvel))) {
             deltat = stepsize * (mindist / maxvel);
             if (deltat < stepmin) {
@@ -512,11 +523,12 @@ llEuler2Rot(<PI_BY_TWO, 0, 0>),
             }
         }
 
-if (trace) {
+if (s_trace) {
     tawk("Deltat = " + (string) deltat + "  previous " + (string) ldeltat +
         "  stepmin " + (string) stepmin);
 ldeltat = deltat;
 }
+*/
         for (i = a = 0; i < n; i += mParamsE, a++) {
             vector vi = llList2Vector(mParams, i + 2);  // Velocity[i]
             vi += llList2Vector(accelN, a) * deltat;
@@ -550,7 +562,7 @@ vector eggPos = llGetPos() + <0, 0, s_zoffset>;
             }
         }
 
-if (trace) {
+if (s_trace) {
 tawk("Simulation time: " + (string) simTime + " deltaT " + (string) deltat);
 for (i = 0; i < n; i += mParamsE) {
     tawk("  " + llList2String(mParams, i) + "  "  +
@@ -585,6 +597,43 @@ for (i = 0; i < n; i += mParamsE) {
 
             if (num == LM_CP_COMMAND) {
                 processAuxCommand(id, llJson2List(str));
+
+            //  LM_CP_REMOVE (226): Remove simulation objects
+
+            } else if (num == LM_CP_REMOVE) {
+                mParams = [ ];              // Parameters of masses
+
+            //  LM_AS_SETTINGS (542): Update settings from main script
+
+            } else if (num == LM_AS_SETTINGS) {
+                list msg = llJson2List(str);
+
+                integer O_legend = s_legend;
+
+                paths = llList2Integer(msg, 2);
+                s_trace = llList2Integer(msg, 3);
+                s_kaboom = (float) llList2String(msg, 4);
+                s_auscale = (float) llList2String(msg, 5);
+                s_radscale = (float) llList2String(msg, 6);
+                s_trails = llList2Integer(msg, 7);
+                s_pwidth = (float) llList2String(msg, 8);
+                s_mindist = (float) llList2String(msg, 9);
+                s_deltat = (float) llList2String(msg, 10);
+                s_eclipshown = llList2Integer(msg, 11);
+                s_eclipsize = (float) llList2String(msg, 12);
+                s_realtime = llList2Integer(msg, 13);
+                s_realstep = (float) llList2String(msg, 14);
+                s_simRate = (float) llList2String(msg, 15);
+                s_stepRate = (float) llList2String(msg, 16);
+                s_zoffset = (float) llList2String(msg, 17);
+                s_legend = llList2Integer(msg, 18);
+
+                if (s_legend != O_legend) {
+                    updateLegend();
+                }
+if (runmode) {
+    llSetTimerEvent(s_simRate);
+}
             }
 
         }
@@ -623,6 +672,8 @@ for (i = 0; i < n; i += mParamsE) {
 
                     //  Send initial settings
                     sendSettings(id, mass_number);
+                    //  Resume deployer script, if suspended
+                    llMessageLinked(LINK_THIS, LM_CP_RESUME, "", whoDat);
                 }
             }
         }
@@ -630,6 +681,7 @@ for (i = 0; i < n; i += mParamsE) {
         //  The timer advances the simulation while it's running
 
         timer() {
+/*
             if (runmode) {
 float tstart = llGetTime();
                 float timeToStep = s_stepRate;
@@ -639,7 +691,7 @@ integer nsteps = 0;
                         step, with the possibility that the integrator
                         may take a smaller step than requested due to
                         large velocities and/or accelerations among
-                        bodies.  */
+                        bodies.  *_/
                     float timeStepped = timeStep(timeToStep);
                     timeToStep -= timeStepped;
                     nsteps++;
@@ -652,6 +704,7 @@ integer nsteps = 0;
                     stepLimit--;
                     if (stepLimit <= 0) {
                         setRun(FALSE);
+                        llMessageLinked(LINK_THIS, LM_CP_RESUME, "", whoDat);
 tawk("Stopped.");
                     }
                 }
@@ -663,6 +716,10 @@ tawk("Stopped.");
                     }
                     llSetTimerEvent(wait);
                 }
+            }
+*/
+            if (runmode) {
+                timeStep(s_stepRate);
             }
         }
     }
