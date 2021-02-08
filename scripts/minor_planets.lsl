@@ -14,7 +14,7 @@
 
     key owner;                      // Owner UUID
     key whoDat = NULL_KEY;          // Avatar who sent command
-    string helpFileName = "Fourmilab Gravitation User Guide"; // Help notecard name
+    string helpFileName = "Fourmilab Orbits User Guide"; // Help notecard name
 
     list s_elem = [ ];              // Elements of currently tracked body
 
@@ -110,7 +110,7 @@
             LSL does not implement hyperbolic trigonometric functions,
             we use our own, defined above.  */
 
-        if (e > 1.1) {
+        if (e > 1.0) {
             float a1 = llFabs(q / (1 - e));
             float m = (K * t) / (a1 * llSqrt(a1));
 
@@ -141,98 +141,6 @@
             //  Finally, compute radius vector to central body
             r = (-a1) * (1 - (e * flCosh(H)));
 
-            return [ v, r ];
-        }
-
-        /*  For near-parabolic motion with eccentricities between
-            0.98 and 1.1, we use an terative solution, based
-            on the program by Werner Landgraf which implements the
-            method of Karl Stumpff.  This program is presented in
-            chapter 35 of Meeus, "Astronomical Algorithms", 2nd ed.
-
-            This method is suitable for eccentricities in the
-            range from 0.98 through 1.1.  */
-
-        if (e >= 0.98) {
-            integer z;
-            integer maxiter = 4096;
-            float q1;
-            float g;
-            float q2;
-            float q3;
-            float s;
-            float c = 1.0 / 3.0;
-            d = 1.0e-6;             // Precision: use 1e-12 for double precision
-            float d1 = 10000;
-            float l;
-            float s0;
-            float s1;
-            float z1;
-            float y;
-            float g1;
-
-            if (t == 0) {
-                //  Time is at periapse: nothing to do.
-                return [ q, 0.0 ];
-            }
-
-            q1 = (K / (2 * q)) * llSqrt((1 + e) / q);
-            g = (1 - e) / (1 + e);
-            q2 = q1 * t;
-            s = 2 / (3 * llFabs(q2));
-            s = 2 / llTan(2 * llAtan2(llPow(llTan(llAtan2(s, 1) / 2), c), 1));
-            if (t < 0) {
-                s = -s;
-            }
-            if (e != 1.0) {
-                l = 0;
-
-                integer loop0 = TRUE;
-                while (loop0) {
-                    s0 = s;
-                    z = 1;
-                    y = s * s;
-                    g1 = (-y) * s;
-                    q3 = q2 + (2 * g * s * (y / 3));
-
-                    integer loop1 = TRUE;
-                    while (loop1) {
-                        z += 1;
-                        g1 = (-g1) * g * y;
-                        z1 = (z - (z + 1) * g) / ((2 * z) + 1);
-                        f = z1 * g1;
-                        q3 = q3 + f;
-                        if ((z > maxiter) || (llFabs(f) > d1)) {
-                            //  Failed to converge after maxiter iterations
-                            return [ ];
-                        }
-                        if (llFabs(f) <= d) {
-                            loop1 = FALSE;
-                        }
-                    }
-                    l += 1;
-                    if (l > maxiter) {
-                        //  Failed to converge after maxiter iterations
-                        return [ ];
-                    }
-                    integer loop2 = TRUE;
-                    while (loop2) {
-                        s1 = s;
-                        s = ((2 * s * s * (s / 3)) + q3) / ((s * s) + 1);
-                        if (llFabs(s - s1) <= d) {
-                            loop2 = FALSE;
-                        }
-                    }
-                    if (llFabs(s - s0) <= d) {
-                        loop0 = FALSE;;
-                    }
-                }
-            }
-            v = 2 * llAtan2(s, 1);
-            r = (q * (1 + e)) / (1 + (e * llCos(v)));
-            if (v < 0) {
-                v += 2 * PI;
-            }
             return [ v, r ];
         }
 
@@ -574,10 +482,10 @@
         return [ hlong, hlat, hrv ];
     }
 
+/*
     //  dumpOrbitalElements  --  Dump orbital elements
 
     dumpOrbitalElements(list e) {
-//        tawk(llList2CSV(elements));
         tawk(llList2String(e, 0) + "\n" +
             "  Epoch " + editJDtoDec(llList2List(e, 1, 2)) + "  " +
                          editJDtoUTC(llList2List(e, 1, 2)) + "\n" +
@@ -597,6 +505,7 @@
             "  Q " + (string) llList2Float(e, 16)
         );
     }
+*/
 
     /*  jyearl  --  Convert Julian date/time list to year, month, day,
                     which are returned as a list.  */
@@ -816,7 +725,8 @@
                         llMessageLinked(LINK_THIS, LM_MP_TRACK,
                             llList2Json(JSON_ARRAY, [ FALSE ]), id);
                     }
-                    s_elem = e;                 // Set
+                    s_elem = e;                 // Save active orbital elements
+
                     //  Inform simulation we're tracking an object
                     llMessageLinked(LINK_THIS, LM_MP_TRACK,
                         llList2Json(JSON_ARRAY,
@@ -834,45 +744,6 @@
 
         } else if (abbrP(command, "cl")) {
             tawk("\n\n\n\n\n\n\n\n\n\n\n\n\n");
-/*
-list l;
-        //   e        t        q
-l = gKepler(1.0, 138.4783, 0.921326);
-tawk("gKepler(1.0...)  v " + (string) (llList2Float(l, 0) * RAD_TO_DEG) +
-    "  r " + (string) llList2Float(l, 1));
-l = gKepler(0.987, 254.9, 0.1);
-tawk("gKepler(0.987...)  v " + (string) (llList2Float(l, 0) * RAD_TO_DEG) +
-    "  r " + (string) llList2Float(l, 1));
-l = gKepler(1.05731, 1237.1, 3.363943);
-tawk("gKepler(1.05731...)  v " + (string) (llList2Float(l, 0) * RAD_TO_DEG) +
-    "  r " + (string) llList2Float(l, 1));
-*/
-/*
-list el = parseOrbitalElements(
-"Asteroid \"1 Ceres\" t 2458600.5  a 2.769165148633284  e .0760090265983052 i 10.59406719506626 w 73.59769469844186 node 80.30553090445737 M 77.37209751948711  H 3.40 G 0.12"
-//"Asteroid \"20461 Dioretsa\" t 2459000.5  a 23.90310583427982  e 0.9001783836230779  i 160.430921292378 w 103.1509508389339  node 297.860852260106 M 63.19131449816003  H 13.8  G 0.150"
-//"Comet \"1P/Halley\" t 2449400.5 a 17.8341442925537 e 0.967142908462304 i 162.262690579161 w 111.3324851045177 node 58.42008097656843 P 2446467.395317050925 q 0.585978111516909 H 3.40 G 0.12"
-//"Comet \"1P/Halley\" t 2449400.5 e 0.967142908462304 i 162.262690579161 w 111.3324851045177 node 58.42008097656843 P 2446467.395317050925 q 0.585978111516909 H 3.40 G 0.12"
-//"Asteroid \"1I/Omuamua\" t 2458080.5 e 1.201133796102373 i 122.7417062847286 w 241.8105360304898 node 24.59690955523242 P 2458006.007321375231 q 0.255911581295911 H 3.40 G 0.12"
-);
-dumpOrbitalElements(el);
-list jdt = [ 2459235, 0.5 ];
-vector pos = computeOrbit(el, jdt);
-tawk("Heliocentric position: " + (string) pos + "  rv " + (string) llVecMag(pos));
-float x = pos.x;
-float y = pos.y;
-float z = pos.z;
-float obelix = obliqeq(llList2Integer(jdt, 0), llList2Float(jdt, 1)) * DEG_TO_RAD;
-float hra = llAtan2(y, x);
-float hdec = llAtan2(z, llSqrt((x * x) + (y * y)));
-float hrv = llSqrt((x * x) + (y * y) + (z * z));
-float hlong = RAD_TO_DEG * (llAtan2((llSin(hra) * llCos(obelix)) +
-                                    (llTan(hdec) * llSin(obelix)), llCos(hra)));
-float hlat = RAD_TO_DEG * ((llAsin(llSin(hdec) * llCos(obelix)) -
-                           (llCos(hdec) * llSin(obelix) * llSin(hra))));
-tawk("Hlong " + (string) hlong + "  Hlat " + (string) hlat + "  Hrv " + (string) hrv);
-//tawk("Hra " + (string)  (RAD_TO_DEG * hra) + "  Hdec " + (string) (RAD_TO_DEG * hdec) + "  Hrv " + (string) hrv);
-*/
 
         //  Help                    Give User Guide notecard to requester
 
@@ -881,19 +752,21 @@ tawk("Hlong " + (string) hlong + "  Hlat " + (string) hlat + "  Hrv " + (string)
 
         //  Status
 
-        } else if (abbrP(command, "st")) {
-            tawk(llGetScriptName() + " status:");
+        } else if (abbrP(command, "sta")) {
+            string s = llGetScriptName() + " status:\n";
 
             integer mFree = llGetFreeMemory();
             integer mUsed = llGetUsedMemory();
-            tawk("  Script memory.  Free: " + (string) mFree +
-                    "  Used: " + (string) mUsed + " (" +
-                    (string) ((integer) llRound((mUsed * 100.0) / (mUsed + mFree))) + "%)"
-            );
+            s += "  Script memory.  Free: " + (string) mFree +
+                 "  Used: " + (string) mUsed + " (" +
+                    (string) ((integer) llRound((mUsed * 100.0) / (mUsed + mFree))) + "%)";
+            tawk(s);
+/*
             if (s_elem != [ ]) {
                 tawk("  Tracking:");
                 dumpOrbitalElements(s_elem);
             }
+*/
         }
         return TRUE;
     }
@@ -987,7 +860,7 @@ tawk("Hlong " + (string) hlong + "  Hlat " + (string) hlat + "  Hrv " + (string)
                     the currently tracked object, if any.  */
                 list args = llJson2List(str);
                 string legend;
-                if (llList2Integer(args, 0)) {
+                if (llList2Integer(args, 0) && (llList2Integer(args, 7) == 0)) {
                     legend = "Time " + (string) llList2Float(args, 1) + " years\n" +
                         "Step " + (string) llList2Integer(args, 2);
                 } else {
@@ -1007,14 +880,11 @@ tawk("Hlong " + (string) hlong + "  Hlat " + (string) hlat + "  Hrv " + (string)
 
             } else if (num == LM_OR_ELLIPSE) {
                 list l = llCSV2List(str);
-tawk("Ellipse " + str + "  elem " + llList2CSV(s_elem));
                 if (llList2Integer(l, 0) == BODY) {
                     /*  We can only display an ellipse if an object is being
                         tracked and its eccentricity is less than 1.  */
                     if ((s_elem != [ ]) &&
                         (llList2Float(s_elem, 4) < 1)) {
-                        integer o_jd = llList2Integer(l, 1);            // Julian day
-                        float o_jdf = llList2Float(l, 2);               // Julian day fraction
                         float o_auscale = llList2Float(l, 3);           // Astronomical unit scale factor
                         vector o_sunpos = (vector) llList2String(l, 4); // Position of Sun
 
@@ -1066,11 +936,8 @@ tawk("Ellipse " + str + "  elem " + llList2CSV(s_elem));
                                 aXYZr,                      // 3    Apoapse location
                                 llList2Float(s_elem, 3),    // 4    Semi-major axis
                                 llList2Float(s_elem, 4),    // 5    Eccentricity
-                                llList2Float(s_elem, 5),    // 6    Inclination
-                                llList2Float(s_elem, 6),    // 7    Argument of periapse
-                                llList2Float(s_elem, 7),    // 8    Longitude of ascending node
-                                o_auscale,                  // 9    Astronomical unit scale factor
-                                cXYZr                       // 10   Co-vertex location
+                                o_auscale,                  // 6    Astronomical unit scale factor
+                                cXYZr                       // 7    Co-vertex location
                             ]), whoDat);
                     }
                 }
