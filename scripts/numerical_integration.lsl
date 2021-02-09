@@ -74,14 +74,10 @@
     integer s_legend = FALSE;           // Display legend above deployer
     float s_simRate = 1;                // Simulation rate (years/second)
     float s_stepRate = 0.1;             // Integration step rate (years/step)
-    integer s_eclipshown = FALSE;       // Showing the ecliptic
-    float s_eclipsize = 30;             // Radius of ecliptic plane
-    integer s_realtime = FALSE;         // Display solar system in real time
-    float s_realstep = 30;              // Real time update interval, seconds
-
 
     integer s_trace = FALSE;            // Trace mass behaviour
     integer paths = FALSE;              // Show particle trails from masss ?
+    integer s_labels = FALSE;           // Show labels above masses ?
 
     integer stepNumber = 0;             // Step counter
     float stepsize = 0.1;       // Motion step size factor
@@ -129,48 +125,37 @@ float collideDist = 0.0001;             // Criterion for declaring collision
         }
     }
 
-    /*  Copyright Strife Onizuka, 2006-2007, LGPL,
-        http://www.gnu.org/copyleft/lesser.html or (cc-by)
-        http://creativecommons.org/licenses/by/3.0/  */
+    /*  fuis  --  Float union to base64-encoded integer
+                  Designed and implemented by Strife Onizuka:
+                    http://wiki.secondlife.com/wiki/User:Strife_Onizuka/Float_Functions  */
 
-    string hv(vector v) {
-        return "<" + hf(v.x) + "," +
-                     hf(v.y) + "," +
-                     hf(v.z) + ">";
+    string fv(vector v) {
+        return fuis(v.x) + fuis(v.y) + fuis(v.z);
     }
 
-    string hexc = "0123456789ABCDEF";
+    string fuis(float a) {
+        //  Detect the sign on zero.  It's ugly, but it gets you there
+        integer b = 0x80000000 & ~llSubStringIndex(llList2CSV([a]), "-");   // Sign
 
-    /*  We rename Float2Hex to hf() to avoid cluttering the
-        many places we use it.  */
-    string hf(float input) {
-        if (input != (integer) input) {
-            string str = (string)input;
-            if (!~llSubStringIndex(str, ".")) {
-                //  NaN or Infinities
-                return str;
+        if ((a)) {      // Is it greater than or less than zero ?
+            //  Denormalized range check and last stride of normalized range
+            if ((a = llFabs(a)) < 2.3509887016445750159374730744445e-38) {
+                b = b | (integer)(a / 1.4012984643248170709237295832899e-45);   // Math overlaps; saves CPU time
+            } else if (a > 3.4028234663852885981170418348452e+38) { // Round up to infinity
+                b = b | 0x7F800000;                                 // Positive or negative infinity
+            } else if (a > 1.4012984643248170709237295832899e-45) { // It should at this point, except if it's NaN
+                integer c = ~-llFloor(llLog(a) * 1.4426950408889634073599246810019);
+                //  Extremes will error towards extremes. The following corrects it
+                b = b | (0x7FFFFF & (integer)(a * (0x1000000 >> c))) |
+                        ((126 + (c = ((integer)a - (3 <= (a *= llPow(2, -c))))) + c) * 0x800000);
+                //  The previous requires a lot of unwinding to understand
+            } else {
+                //  NaN time!  We have no way to tell NaNs apart so pick one arbitrarily
+                b = b | 0x7FC00000;
             }
-            float unsigned = llFabs(input);
-            integer exponent = llFloor((llLog(unsigned) / 0.69314718055994530941723212145818));
-
-            //  Shift mantissa into integer range
-            integer mantissa = (integer) ((unsigned /
-                ((float) ("0x1p" + (string) (exponent -= ((exponent >> 31) | 1))))) * 0x4000000);
-            //  Index of first one bit in mantissa
-            integer index = (integer) (llLog(mantissa & -mantissa) / 0.69314718055994530941723212145818);
-            str = "p" + (string) (exponent + index - 26);
-            mantissa = mantissa >> index;
-            do {
-                str = llGetSubString(hexc, 15 & mantissa, 15 & mantissa) + str;
-            } while ((mantissa = mantissa >> 4));
-
-            if (input < 0) {
-                return "-0x" + str;
-            }
-            return "0x" + str;
         }
-        //  It's an integral value: just return decimal integer string
-        return llDeleteSubString((string) input, -7, -1);
+
+        return llGetSubString(llIntegerToBase64(b), 0, 5);
     }
 
     /*  fixArgs  --  Transform command arguments into canonical form.
@@ -398,18 +383,24 @@ llSetTimerEvent(s_simRate);
                           nonzero, the message is directed to
                           that specific mass.  If zero, it is
                           a broadcast to all masses, and the id
-                          argument is ignored.  */
+                          argument is ignored.  These messages,
+                          with a type of "MASS_SET", should not
+                          be confused with the "SETTINGS" messages
+                          set by the deployer.  They contain only
+                          parameters of interest to the masses
+                          toiling in the fields.  */
 
     sendSettings(key id, integer mass) {
-        string msg = llList2Json(JSON_ARRAY, [ "SETTINGS", mass,
+        string msg = llList2Json(JSON_ARRAY, [ "MASS_SET", mass,
                             paths,
                             s_trace,
-                            hf(s_kaboom),
-                            hf(s_auscale),
-                            hf(s_radscale),
+                            fuis(s_kaboom),
+                            fuis(s_auscale),
+                            fuis(s_radscale),
                             s_trails,
-                            hf(s_pwidth),
-                            hf(s_mindist)
+                            fuis(s_pwidth),
+                            fuis(s_mindist),
+                            s_labels
                       ]);
         if (mass == 0) {
             llRegionSay(massChannel, msg);
@@ -544,7 +535,7 @@ ldeltat = deltat;
         stepNumber++;
         simTime += deltat;
         updateLegend();
-vector eggPos = llGetPos() + <0, 0, s_zoffset>;
+        vector depPos = llGetPos() + <0, 0, s_zoffset>;
         for (i = a = 0; i < n; i += mParamsE, a++) {
             if (llList2Float(mParams, i + 3) > 0) {
                 vector where = llList2Vector(mParams, i + 1) +
@@ -554,22 +545,22 @@ vector eggPos = llGetPos() + <0, 0, s_zoffset>;
 
                 //  Send update to the mass object
 
-                vector rwhere  = (where * s_auscale) + eggPos;
+                vector rwhere  = (where * s_auscale) + depPos;
                 llRegionSayTo(llList2Key(mParams, i + 7), massChannel,
-                    llList2Json(JSON_ARRAY, [ "UPDATE", a + 1,
-                        rwhere
+                    llList2Json(JSON_ARRAY, [ "UMASS", a + 1,
+                        fv(rwhere)
                 ]));
             }
         }
 
-if (s_trace) {
-tawk("Simulation time: " + (string) simTime + " deltaT " + (string) deltat);
-for (i = 0; i < n; i += mParamsE) {
-    tawk("  " + llList2String(mParams, i) + "  "  +
-        (string) llList2Vector(mParams, i + 1) + "  " +
-        (string) llList2Vector(mParams, i + 2));
-}
-}
+        if (s_trace) {
+            tawk("Simulation time: " + (string) simTime + " deltaT " + (string) deltat);
+            for (i = 0; i < n; i += mParamsE) {
+                tawk("  " + llList2String(mParams, i) + "  "  +
+                    (string) llList2Vector(mParams, i + 1) + "  " +
+                    (string) llList2Vector(mParams, i + 2));
+            }
+        }
         return deltat;                  // Return time actually stepped
     }
 
@@ -610,6 +601,8 @@ for (i = 0; i < n; i += mParamsE) {
 
                 integer O_legend = s_legend;
 
+                /*  We only decode settings in which we're interested
+                    or wish to pass on to masses we've created.  */
                 paths = llList2Integer(msg, 2);
                 s_trace = llList2Integer(msg, 3);
                 s_kaboom = (float) llList2String(msg, 4);
@@ -619,15 +612,14 @@ for (i = 0; i < n; i += mParamsE) {
                 s_pwidth = (float) llList2String(msg, 8);
                 s_mindist = (float) llList2String(msg, 9);
                 s_deltat = (float) llList2String(msg, 10);
-                s_eclipshown = llList2Integer(msg, 11);
-                s_eclipsize = (float) llList2String(msg, 12);
-                s_realtime = llList2Integer(msg, 13);
-                s_realstep = (float) llList2String(msg, 14);
                 s_simRate = (float) llList2String(msg, 15);
                 s_stepRate = (float) llList2String(msg, 16);
                 s_zoffset = (float) llList2String(msg, 17);
                 s_legend = llList2Integer(msg, 18);
+                simEpoch = llList2List(msg, 19, 20);
+                s_labels = llList2Integer(msg, 21);
 
+                sendSettings(NULL_KEY, 0);
                 if (s_legend != O_legend) {
                     updateLegend();
                 }
@@ -635,7 +627,6 @@ if (runmode) {
     llSetTimerEvent(s_simRate);
 }
             }
-
         }
 
         //  The listen event handles messages from objects we create
@@ -647,12 +638,12 @@ if (runmode) {
                 string ccmd = llList2String(msg, 0);
 
                 /*  When deployed and its script starts to run, each
-                    mass sends us a REZ message with its mass number
+                    mass sends us a NEWMASS message with its mass number
                     and key.  This allows us to send it an INIT message
                     containing, encoded in JSON, the parameters with
                     which it should initialise itself.  */
 
-                if (ccmd == "REZ") {
+                if (ccmd == "NEWMASS") {    // "It's so very simple, that only a child can do it!"
                     integer mass_number = llList2Integer(msg, 1);
                     integer mindex = (mass_number - 1) * mParamsE;
                     //  Save key of mass object in mParams
@@ -660,14 +651,12 @@ if (runmode) {
                         mindex + 7, mindex + 7);
 
                     llRegionSayTo(id, massChannel,
-                        llList2Json(JSON_ARRAY, [ "INIT", mass_number,
+                        llList2Json(JSON_ARRAY, [ "MINIT", mass_number,
                         llList2String(mParams, mindex),                 // Name of body
-                        hv(llList2Vector(mParams, mindex + 1)),         // Initial position
-                        hv(llList2Vector(mParams, mindex + 2)),         // Initial velocity
-                        hf(llList2Float(mParams, mindex + 3)),          // Mass
+                        fuis(llList2Float(mParams, mindex + 3)),        // Mass
                         llList2String(mParams, mindex + 4),             // Colour (extended)
-                        hf(llList2Float(mParams, mindex + 5)),          // Mean radius
-                        hv(llList2Vector(mParams, mindex + 6))          // Deployer position
+                        fuis(llList2Float(mParams, mindex + 5)),        // Mean radius
+                        fv(llList2Vector(mParams, mindex + 6))          // Deployer position
                     ]));
 
                     //  Send initial settings

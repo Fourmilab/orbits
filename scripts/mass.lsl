@@ -37,7 +37,6 @@
     string ypres = "B?+:$$";            // It's pronounced "Wipers"
     string Collision = "Balloon Pop";   // Explosion sound clip
 
-    vector initialPos;                  // Initial mass position
     vector deployerPos;                 // Deployer position (centre of cage)
 
     float startTime;                    // Time we were hatched
@@ -139,6 +138,26 @@
         );
     }
 
+    /*  siuf  --  Base64 encoded integer to float
+                  Designed and implemented by Strife Onizuka:
+                    http://wiki.secondlife.com/wiki/User:Strife_Onizuka/Float_Functions  */
+
+    vector sv(string b) {
+        return(< siuf(llGetSubString(b, 0, 5)),
+                 siuf(llGetSubString(b, 6, 11)),
+                 siuf(llGetSubString(b, 12, -1)) >);
+    }
+
+    float siuf(string b) {
+        integer a = llBase64ToInteger(b);
+        if (0x7F800000 & ~a) {
+            return llPow(2, (a | !a) + 0xffffff6a) *
+                      (((!!(a = (0xff & (a >> 23)))) * 0x800000) |
+                       (a & 0x7fffff)) * (1 | (a >> 31));
+        }
+        return (!(a & 0x7FFFFF)) * (float) "inf" * ((a >> 31) | 1);
+    }
+
     //  tawk  --  Send a message to the interacting user in chat
 
     tawk(string msg) {
@@ -211,7 +230,7 @@
 
                 //  Inform the deployer that we are now listening
                 llRegionSayTo(deployer, massChannel,
-                    llList2Json(JSON_ARRAY, [ "REZ", m_index ]));
+                    llList2Json(JSON_ARRAY, [ "NEWMASS", m_index ]));
 
                 initState = 1;          // Waiting for SETTINGS and INIT
             }
@@ -271,18 +290,19 @@
                                 );
                         }
 
-                    //  INIT  --  Set initial parameters after creation
+                    //  MINIT  --  Set initial mass parameters after creation
 
-                    } else if (ccmd == "INIT") {
+                    } else if (ccmd == "MINIT") {
                         if (m_index == llList2Integer(msg, 1)) {
+//tawk("MINIT  " + llList2CSV(msg));
                             m_name = llList2String(msg, 2);             // Name
-                            m_mass = llList2Float(msg, 5);              // Mass
-                            list xcol =  exColour(llList2String(msg, 6));   // Extended colour
-                            m_colour = llList2Vector(xcol, 0);          // Colour
-                            m_alpha = llList2Float(xcol, 1);            // Alpha
-                            m_glow = llList2Float(xcol, 2);             // Glow
-                            m_radius = llList2Float(msg, 7);            // Mean radius
-                            deployerPos = (vector) llList2String(msg, 8); // Deployer position
+                            m_mass = siuf(llList2String(msg, 3));       // Mass
+                            list xcol =  exColour(llList2String(msg, 4));   // Extended colour
+                                m_colour = llList2Vector(xcol, 0);              // Colour
+                                m_alpha = llList2Float(xcol, 1);                // Alpha
+                                m_glow = llList2Float(xcol, 2);                 // Glow
+                            m_radius = siuf(llList2String(msg, 5));     // Mean radius
+                            deployerPos = sv(llList2String(msg, 6));    // Deployer position
 
                             /* IF TRACE */
                             b1 = m_index == 1;
@@ -300,22 +320,28 @@
                             initState = 2;                  // INIT received, waiting for SETTINGS
                         }
 
-                    //  SETTINGS  --  Set simulation parameters
+                    /*  MASS_SET  --  Set simulation parameters relevant to masses.
+                                      Do not confuse this message with the
+                                      LM_AS_SETTINGS link message which is sent
+                                      from the deployer.  This message is sent to
+                                      the masses we've created to apprise them of
+                                      settings relevant to their operation.  */
 
-                    } else if (ccmd == "SETTINGS") {
+                    } else if (ccmd == "MASS_SET") {
                         integer bn = llList2Integer(msg, 1);
                         integer o_labels = s_labels;
 
                         if ((bn == 0) || (bn == m_index)) {
+//tawk("MASS_SET  " + llList2CSV(msg));
                             paths = llList2Integer(msg, 2);
                             s_trace = llList2Integer(msg, 3);
-                            s_kaboom = llList2Float(msg, 4);
-                            s_auscale = llList2Float(msg, 5);
-                            s_radscale = llList2Float(msg, 6);
+                            s_kaboom = siuf(llList2String(msg, 4));
+                            s_auscale = siuf(llList2String(msg, 5));
+                            s_radscale = siuf(llList2String(msg, 6));
                             s_trails = llList2Integer(msg, 7);
-                            s_pwidth = llList2Float(msg, 8);
-                            s_mindist = llList2Float(msg, 9);
-                            s_labels = llList2Integer(msg, 21);
+                            s_pwidth = siuf(llList2String(msg, 8));
+                            s_mindist = siuf(llList2String(msg, 9));
+                            s_labels = llList2Integer(msg, 10);
                         }
 
                         if (o_labels != s_labels) {
@@ -356,11 +382,11 @@
                             llParticleSystem([ ]);
                         }
 
-                    //  UPDATE  --  Update mass position
+                    //  UMASS  --  Update mass position
 
-                    } else if (ccmd == "UPDATE") {
+                    } else if (ccmd == "UMASS") {
                         vector p = llGetPos();
-                        vector npos = (vector) llList2String(msg, 2);
+                        vector npos = sv(llList2String(msg, 2));
                         float dist = llVecDist(p, npos);
                         if (s_trace) {
                             tawk(m_name + ": Update pos from " + (string) p + " to " + (string) npos +
