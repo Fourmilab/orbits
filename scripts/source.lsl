@@ -29,10 +29,9 @@
     integer m_upkeyL;                   // Update key length
 
     //  Settings communicated by deployer
-//    float s_kaboom = 50;                // Self destruct if this far (AU) from deployer
     float s_auscale = 0.2;              // Astronomical unit scale
     float s_radscale = 0.0000025;       // Radius scale
-    integer s_trails = TRUE;            // Plot orbital trails ?
+    integer s_trails = FALSE;           // Plot orbital trails ?
     float s_pwidth = 0.01;              // Paths/trails width
     float s_mindist = 0.1;              // Minimum distance to move
 
@@ -210,16 +209,14 @@
             tawk(m_name + ": Update pos from " + (string) p + " to " + (string) npos +
         " dist " + (string) dist);
         }
-/*  Kaboom now handled in the deployer
-        if ((s_kaboom > 0) &&
-            ((llVecDist(npos, deployerPos) / s_auscale) > s_kaboom)) {
-            kaboom();
-            return;
-        }
-*/
         if (dist >= s_mindist) {
-            llSetLinkPrimitiveParamsFast(LINK_THIS,
-                [ PRIM_POSITION, npos ]);
+            if (dist >= 10) {
+                //  If we've moved more than 10 metres, use llSetRegionPos()
+                llSetRegionPos(npos);
+            } else {
+                llSetLinkPrimitiveParamsFast(LINK_THIS,
+                    [ PRIM_POSITION, npos ]);
+            }
             if (paths) {
                 llSetLinkPrimitiveParamsFast(LINK_THIS,
                 [ PRIM_ROTATION, llRotBetween(<0, 0, 1>, (npos - p)) ]);
@@ -378,22 +375,21 @@
                             initState = 2;                  // INIT received, waiting for SETTINGS
                         }
 
-                    //  SETTINGS  --  Set simulation parameters
+                    //  SOURCE_SET  --  Set simulation parameters
 
-                    } else if (ccmd == "SETTINGS") {
+                    } else if (ccmd == "SOURCE_SET") {
                         integer bn = llList2Integer(msg, 1);
                         integer o_labels = s_labels;
 
                         if ((bn == 0) || (bn == m_index)) {
                             paths = llList2Integer(msg, 2);
                             s_trace = llList2Integer(msg, 3);
-//                            s_kaboom = llList2Float(msg, 4);
-                            s_auscale = llList2Float(msg, 5);
-                            s_radscale = llList2Float(msg, 6);
-                            s_trails = llList2Integer(msg, 7);
-                            s_pwidth = llList2Float(msg, 8);
-                            s_mindist = llList2Float(msg, 9);
-                            s_labels = llList2Integer(msg, 21);
+                            s_auscale = siuf(llList2String(msg, 4));
+                            s_radscale = siuf(llList2String(msg, 5));
+                            s_trails = llList2Integer(msg, 6);
+                            s_pwidth = siuf(llList2String(msg, 7));
+                            s_mindist = siuf(llList2String(msg, 8));
+                            s_labels = llList2Integer(msg, 9);
                         }
 
                         if (o_labels != s_labels) {

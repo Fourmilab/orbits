@@ -82,7 +82,6 @@
     float GRAVCON;                      // (G_SI / GRAV_CONV)
 
     //  Settings communicated by deployer
-    float s_kaboom = 50;                // Self destruct if this far (AU) from deployer
     float s_auscale = 0.3;              // Astronomical unit scale
     float s_radscale = 0.0000025;       // Radius scale
     integer s_trails = FALSE;           // Show trails with temporary prims
@@ -93,12 +92,6 @@
     float s_deltat = 0.01;              // Integration time step
     float s_zoffset = 1;                // Z offset to create masses
     integer s_legend = FALSE;           // Display legend above deployer
-    float s_simRate = 1;                // Simulation rate (years/second)
-    float s_stepRate = 0.1;             // Integration step rate (years/step)
-    integer s_eclipshown = FALSE;       // Showing the ecliptic
-    float s_eclipsize = 30;             // Radius of ecliptic plane
-    integer s_realtime = FALSE;         // Display solar system in real time
-    float s_realstep = 30;              // Real time update interval, seconds
     integer s_trace = FALSE;            // Trace mass behaviour
     integer paths = FALSE;              // Show particle trails from mass ?
 
@@ -141,6 +134,35 @@
                 llRegionSayTo(whoDat, PUBLIC_CHANNEL, msg);
             }
         }
+    }
+
+    /*  fuis  --  Float union to base64-encoded integer
+                  Designed and implemented by Strife Onizuka:
+                    http://wiki.secondlife.com/wiki/User:Strife_Onizuka/Float_Functions  */
+
+    string fuis(float a) {
+        //  Detect the sign on zero.  It's ugly, but it gets you there
+        integer b = 0x80000000 & ~llSubStringIndex(llList2CSV([a]), "-");   // Sign
+
+        if ((a)) {      // Is it greater than or less than zero ?
+            //  Denormalized range check and last stride of normalized range
+            if ((a = llFabs(a)) < 2.3509887016445750159374730744445e-38) {
+                b = b | (integer)(a / 1.4012984643248170709237295832899e-45);   // Math overlaps; saves CPU time
+            } else if (a > 3.4028234663852885981170418348452e+38) { // Round up to infinity
+                b = b | 0x7F800000;                                 // Positive or negative infinity
+            } else if (a > 1.4012984643248170709237295832899e-45) { // It should at this point, except if it's NaN
+                integer c = ~-llFloor(llLog(a) * 1.4426950408889634073599246810019);
+                //  Extremes will error towards extremes. The following corrects it
+                b = b | (0x7FFFFF & (integer)(a * (0x1000000 >> c))) |
+                        ((126 + (c = ((integer)a - (3 <= (a *= llPow(2, -c))))) + c) * 0x800000);
+                //  The previous requires a lot of unwinding to understand
+            } else {
+                //  NaN time!  We have no way to tell NaNs apart so pick one arbitrarily
+                b = b | 0x7FC00000;
+            }
+        }
+
+        return llGetSubString(llIntegerToBase64(b), 0, 5);
     }
 
     //  parseJD  --  Parse decimal Julian date into list of day and fraction
@@ -313,24 +335,28 @@
                 ];
     }
 
-    /*  sendSettings  --  Send settings to mass(es).  If mass is
+    /*  sendSettings  --  Send settings to source(s).  If source is
                           nonzero, the message is directed to
-                          that specific mass.  If zero, it is
-                          a broadcast to all masses, and the id
-                          argument is ignored.  */
+                          that specific source.  If zero, it is
+                          a broadcast to all sources, and the id
+                          argument is ignored.  These messages,
+                          with a type of "SOURCE_SET", should not
+                          be confused with the "SETTINGS" messages
+                          set by the deployer.  They contain only
+                          parameters of interest to sources.  */
 
-    sendSettings(key id, integer mass) {
-        string msg = llList2Json(JSON_ARRAY, [ "SETTINGS", mass,
+    sendSettings(key id, integer source) {
+        string msg = llList2Json(JSON_ARRAY, [ "SOURCE_SET", source,
                             paths,
                             s_trace,
-                            s_kaboom,
-                            s_auscale,
-                            s_radscale,
+                            fuis(s_auscale),
+                            fuis(s_radscale),
                             s_trails,
-                            s_pwidth,
-                            s_mindist
+                            fuis(s_pwidth),
+                            fuis(s_mindist),
+                            s_labels
                       ]);
-        if (mass == 0) {
+        if (source == 0) {
             llRegionSay(massChannel, msg);
         } else {
             llRegionSayTo(id, massChannel, msg);
@@ -486,25 +512,22 @@
             } else if (num == LM_AS_SETTINGS) {
                 list msg = llJson2List(str);
 
+                /*  We only decode settings in which we're interested
+                    or wish to pass on to sources we've created.  */
                 paths = llList2Integer(msg, 2);
                 s_trace = llList2Integer(msg, 3);
-                s_kaboom = (float) llList2String(msg, 4);
                 s_auscale = (float) llList2String(msg, 5);
                 s_radscale = (float) llList2String(msg, 6);
                 s_trails = llList2Integer(msg, 7);
                 s_pwidth = (float) llList2String(msg, 8);
                 s_mindist = (float) llList2String(msg, 9);
                 s_deltat = (float) llList2String(msg, 10);
-                s_eclipshown = llList2Integer(msg, 11);
-                s_eclipsize = (float) llList2String(msg, 12);
-                s_realtime = llList2Integer(msg, 13);
-                s_realstep = (float) llList2String(msg, 14);
-                s_simRate = (float) llList2String(msg, 15);
-                s_stepRate = (float) llList2String(msg, 16);
                 s_zoffset = (float) llList2String(msg, 17);
                 s_legend = llList2Integer(msg, 18);
                 simEpoch = llList2List(msg, 19, 20);
                 s_labels = llList2Integer(msg, 21);
+
+                sendSettings(NULL_KEY, 0);
             }
         }
 
