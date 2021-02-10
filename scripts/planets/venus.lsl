@@ -68,21 +68,12 @@
     string ypres = "B?+:$$";            // It's pronounced "Wipers"
     string Collision = "Balloon Pop";   // Explosion sound clip
 
-    vector initialPos;                  // Initial mass position
     vector deployerPos;                 // Deployer position (centre of cage)
-
-    float startTime;                    // Time we were placed
 
     key whoDat;                         // User with whom we're communicating
     integer paths;                      // Draw particle trail behind masses ?
-    /* IF TRACE */
-    integer b1;                         // Used to trace only mass 1
-    /* END TRACE */
-    integer stepCount;                  // Total step count
-float stepTime;                         // Step sequence start time
-integer stepMove = 0;
 
-vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
+vector m_colour = < 0.8, 0, 0 >;        // HACK--SPECIFY COLOUR IN planet LIST
 
     //  Destroy mass after collision or going out of range
 
@@ -126,6 +117,26 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
 
         llSleep(1);         // Need to wait to allow particles and sound to play
         llDie();
+    }
+
+    /*  siuf  --  Base64 encoded integer to float
+                  Designed and implemented by Strife Onizuka:
+                    http://wiki.secondlife.com/wiki/User:Strife_Onizuka/Float_Functions  */
+
+    vector sv(string b) {
+        return(< siuf(llGetSubString(b, 0, 5)),
+                 siuf(llGetSubString(b, 6, 11)),
+                 siuf(llGetSubString(b, 12, -1)) >);
+    }
+
+    float siuf(string b) {
+        integer a = llBase64ToInteger(b);
+        if (0x7F800000 & ~a) {
+            return llPow(2, (a | !a) + 0xffffff6a) *
+                      (((!!(a = (0xff & (a >> 23)))) * 0x800000) |
+                       (a & 0x7fffff)) * (1 | (a >> 31));
+        }
+        return (!(a & 0x7FFFFF)) * (float) "inf" * ((a >> 31) | 1);
     }
 
     //  ef  --  Edit floats in string to parsimonious representation
@@ -326,7 +337,6 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
             }
         }
     }
-    /* END TRACE */
 
     default {
 
@@ -360,8 +370,6 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                 //  Inform the deployer that we are now listening
                 llRegionSayTo(deployer, massChannel,
                     llList2Json(JSON_ARRAY, [ "PLANTED", m_index ]));
-
-                stepCount = 0;
 
                 initState = 1;          // Waiting for SETTINGS and INIT
             }
@@ -413,13 +421,11 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                     } else if (ccmd == "PINIT") {
                         if (m_index == llList2Integer(msg, 1)) {
                             m_name = llList2String(msg, 2);             // Name
-                            deployerPos = (vector) llList2String(msg, 3); // Deployer position
-                            m_scalePlanet = llList2Float(msg, 4);       // Planet scale
-                            m_scaleStar =  llList2Float(msg, 5);        // Star scale
-
-                            /* IF TRACE */
-                            b1 = m_index == 1;
-                            /* END TRACE */
+                            deployerPos = sv(llList2String(msg, 3));    // Deployer position
+                            m_scalePlanet = siuf(llList2String(msg, 4));    // Planet scale
+                            m_scaleStar =  siuf(llList2String(msg, 5)); // Star scale
+                            m_jd = llList2Integer(msg, 6);              // Epoch Julian day
+                            m_jdf = siuf(llList2String(msg, 7));        // Epoch Julian day fraction
 
                             //  Set properties of object
                             float oscale = m_scalePlanet;
@@ -440,9 +446,6 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                                 npole.x * DEG_TO_RAD, npole.y * DEG_TO_RAD);
                             vector npvec = sphRect(llList2Float(npecl, 0), llList2Float(npecl, 1), 1);
                             rotation nprot = llRotBetween(<-1, 0, 0>, npvec);
-/* tawk("JD " + (string) m_jd + "  JDF " + (string) m_jdf +
-    "  obliqeq " + (string) obliqeq(m_jd, m_jdf) +
-    "  pole " + (string) sphRect(llList2Float(npecl, 0), llList2Float(npecl, 1), 1)); */
 
                             llSetLinkPrimitiveParamsFast(LINK_THIS, [
                                 PRIM_DESC,  llList2Json(JSON_ARRAY,
@@ -455,10 +458,6 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                             initState = 2;                  // INIT received, waiting for SETTINGS
                         }
 
-                    //  RESET  --  Restore initial position and velocity
-
-                    } else if (ccmd == "RESET") {
-
                     //  SETTINGS  --  Set simulation parameters
 
                     } else if (ccmd == "SETTINGS") {
@@ -466,32 +465,29 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                         if ((bn == 0) || (bn == m_index)) {
                             paths = llList2Integer(msg, 2);
                             s_trace = llList2Integer(msg, 3);
-                            s_kaboom = (float) llList2String(msg, 4);
-                            s_auscale = (float) llList2String(msg, 5);
-                            s_radscale = (float) llList2String(msg, 6);
+                            s_kaboom = siuf(llList2String(msg, 4));
+                            s_auscale = siuf(llList2String(msg, 5));
+                            s_radscale = siuf(llList2String(msg, 6));
                             s_trails = llList2Integer(msg, 7);
-                            s_pwidth = (float) llList2String(msg, 8);
-                            s_mindist = (float) llList2String(msg, 9);
+                            s_pwidth = siuf(llList2String(msg, 8));
+                            s_mindist = siuf(llList2String(msg, 9));
                         }
 
                         if (initState == 2) {
                             initState = 3;                  // INIT and SETTINGS received, now flying
-                            startTime = llGetTime();        // Remember when we started
                         }
 
                         //  Set or clear particle trail depending upon paths
                         if (paths) {
                             llParticleSystem(
                                 [ PSYS_PART_FLAGS, PSYS_PART_EMISSIVE_MASK |
-                                    PSYS_PART_INTERP_COLOR_MASK |
-                                    PSYS_PART_RIBBON_MASK,
+                                  PSYS_PART_INTERP_COLOR_MASK |
+                                  PSYS_PART_RIBBON_MASK,
                                   PSYS_SRC_PATTERN, PSYS_SRC_PATTERN_DROP,
                                   PSYS_PART_START_COLOR, m_colour,
                                   PSYS_PART_END_COLOR, m_colour,
-///                                  PSYS_PART_START_SCALE, <0.25, 0.25, 0.25>,
-//                                  PSYS_PART_END_SCALE, <0.25, 0.25, 0.25>,
-PSYS_PART_START_SCALE, <0.75, 0.75, 1>,
-PSYS_PART_END_SCALE, <0.75, 0.75, 1>,
+                                  PSYS_PART_START_SCALE, <0.75, 0.75, 1>,
+                                  PSYS_PART_END_SCALE, <0.75, 0.75, 1>,
                                   PSYS_SRC_MAX_AGE, 0,
                                   PSYS_PART_MAX_AGE, 8.0,
                                   PSYS_SRC_BURST_RATE, 0.0,
@@ -504,16 +500,8 @@ PSYS_PART_END_SCALE, <0.75, 0.75, 1>,
                     //  UPDATE  --  Update mass position
 
                     } else if (ccmd == "UPDATE") {
-if (llList2Integer(msg, 1) != m_index) {
-    tawk(m_name + ": Huh?  Got update for wrong index: " + llList2CSV(msg));
-    return;
-}
-if ((stepCount % 64) == 0) {
-    stepTime = llGetTime();
-}
-//tawk(m_name + ":  " + llList2CSV(msg));
                         vector p = llGetPos();
-                        vector npos = (vector) llList2String(msg, 2);
+                        vector npos = sv(llList2String(msg, 2));
                         float dist = llVecDist(p, npos);
 if (s_trace) {
     tawk(m_name + ": Update pos from " + (string) p + " to " + (string) npos +
@@ -525,25 +513,16 @@ if (s_trace) {
                             return;
                         }
                         if (dist >= s_mindist) {
+                            llSetLinkPrimitiveParamsFast(LINK_THIS,
+                                [ PRIM_POSITION, npos ]);
+                            if (paths) {
+                                llSetLinkPrimitiveParamsFast(LINK_THIS,
+                                    [ PRIM_ROTATION, llRotBetween(<0, 0, 1>, (npos - p)) ]);
+                            }
                             if (s_trails) {
                                 flPlotLine(p, npos, m_colour, s_pwidth);
                             }
-                            llSetLinkPrimitiveParamsFast(LINK_THIS,
-                                [ PRIM_POSITION, npos ]);
-if (paths) {
-llSetLinkPrimitiveParamsFast(LINK_THIS,
-    [ PRIM_ROTATION, llRotBetween(<0, 0, 1>, (npos - p)) ]);
-}
-stepMove++;
                         }
-stepCount++;
-/*  For benchmarks
-if ((stepCount % 64) == 0) {
-    float dt = llGetTime() - stepTime;
-    tawk(m_name + ": Update time: " + (string) dt + "  (Step " + (string) stepCount + ", " +
-        (string) stepMove + " moves)");
-}
-*/
                     }
                 }
             }

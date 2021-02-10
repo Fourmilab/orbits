@@ -3,12 +3,12 @@
 
                     Fourmilab Solar System
 
-                      Asteroid Definition
+                       Comet Definition
 
     */
 
     list planet = [
-        "Asteroid",         // 0  Name of body
+        "Comet",            // 0  Name of body
         "Sun",              // 1  Primary
 
         //  Orbital elements
@@ -63,28 +63,26 @@
     integer s_trails = TRUE;            // Plot orbital trails ?
     float s_pwidth = 0.01;              // Paths/trails width
     float s_mindist = 0.1;              // Minimum distance to move
-    integer s_legend = TRUE;            // Show floating text legend ?
+    integer s_labels = FALSE;           // Show floating text legend ?
 
     integer massChannel = -982449822;   // Channel for communicating with planets
     string ypres = "B?+:$$";            // It's pronounced "Wipers"
     string Collision = "Balloon Pop";   // Explosion sound clip
     string U_deg;                       // U+00B0 Degree Sign
 
-    vector initialPos;                  // Initial mass position
-    vector deployerPos;                 // Deployer position (centre of cage)
-
-    float startTime;                    // Time we were placed
+    vector deployerPos;                 // Deployer position
 
     key whoDat;                         // User with whom we're communicating
     integer paths;                      // Draw particle trail behind masses ?
-    /* IF TRACE */
-    integer b1;                         // Used to trace only mass 1
-    /* END TRACE */
-    integer stepCount;                  // Total step count
-float stepTime;                         // Step sequence start time
-integer stepMove = 0;
 
-vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
+float tailtogg = 0; // Comet tail toggle
+
+vector m_colour = < 0.749, 0.745, 0.749 >;  // HACK--SPECIFY COLOUR IN planet LIST
+
+    //  Link messages
+
+    integer LM_CO_COMA = 81;            // Set coma intensity
+    integer LM_CO_SCALE = 82;           // Set scale factor
 
     //  Destroy mass after collision or going out of range
 
@@ -128,6 +126,26 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
 
         llSleep(1);         // Need to wait to allow particles and sound to play
         llDie();
+    }
+
+    /*  siuf  --  Base64 encoded integer to float
+                  Designed and implemented by Strife Onizuka:
+                    http://wiki.secondlife.com/wiki/User:Strife_Onizuka/Float_Functions  */
+
+    vector sv(string b) {
+        return(< siuf(llGetSubString(b, 0, 5)),
+                 siuf(llGetSubString(b, 6, 11)),
+                 siuf(llGetSubString(b, 12, -1)) >);
+    }
+
+    float siuf(string b) {
+        integer a = llBase64ToInteger(b);
+        if (0x7F800000 & ~a) {
+            return llPow(2, (a | !a) + 0xffffff6a) *
+                      (((!!(a = (0xff & (a >> 23)))) * 0x800000) |
+                       (a & 0x7fffff)) * (1 | (a >> 31));
+        }
+        return (!(a & 0x7FFFFF)) * (float) "inf" * ((a >> 31) | 1);
     }
 
     //  ef  --  Edit floats in string to parsimonious representation
@@ -328,7 +346,7 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
     //  updateLegend  --  Update floating text legend above body
 
     updateLegend(vector pos) {
-        if (s_legend) {
+        if (s_labels) {
             string legend;
             vector lbr = rectSph(pos);
 
@@ -361,7 +379,67 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
             }
         }
     }
-    /* END TRACE */
+
+    /*  tail  --  Set the comet's tail intensity.  The intensity
+                  varies from 0 (off entirely) to 1 (full on)
+                  according to the comet's distance from the Sun.  */
+
+    tail(float length) {
+        if (length > 0) {
+            llParticleSystem([
+
+                //  System Behaviour
+                PSYS_PART_FLAGS,
+                                   PSYS_PART_EMISSIVE_MASK
+                                 | PSYS_PART_FOLLOW_SRC_MASK
+                                 | PSYS_PART_INTERP_COLOR_MASK
+                                 | PSYS_PART_INTERP_SCALE_MASK
+                                 ,
+
+                //  System Presentation
+                PSYS_SRC_PATTERN,
+                                PSYS_SRC_PATTERN_DROP
+                                ,
+
+                PSYS_SRC_BURST_RADIUS, 0.1,
+                PSYS_SRC_ANGLE_BEGIN,  0,
+                PSYS_SRC_ANGLE_END,    0.5,
+
+                //  Particle appearance
+                PSYS_PART_START_COLOR, < 1, 1, 1 >,
+                PSYS_PART_END_COLOR,   < 1, 1, 1 >,
+                PSYS_PART_START_ALPHA, 0.2,
+                PSYS_PART_END_ALPHA,   0,
+                PSYS_PART_START_SCALE, < 0.03, 0.03, 0.03 >,
+                PSYS_PART_END_SCALE,   < 0.5, 0.5, 0.5 >,
+                PSYS_PART_START_GLOW,  0.0,
+                PSYS_PART_END_GLOW,    0.0,
+
+                //  Particle Blending
+                PSYS_PART_BLEND_FUNC_SOURCE,
+                                           PSYS_PART_BF_SOURCE_ALPHA
+                                           ,
+                PSYS_PART_BLEND_FUNC_DEST,
+                                           PSYS_PART_BF_ONE_MINUS_SOURCE_ALPHA
+                                           ,
+
+                //  Particle Flow
+                PSYS_SRC_MAX_AGE,          0,
+                PSYS_PART_MAX_AGE,         1 * length,
+                PSYS_SRC_BURST_RATE,       0.01,
+                PSYS_SRC_BURST_PART_COUNT, 12,
+
+                //  Particle Motion
+                PSYS_SRC_ACCEL,           llVecNorm(llGetPos() - deployerPos),
+                PSYS_SRC_OMEGA,           <0, 0, 0>,
+                PSYS_SRC_BURST_SPEED_MIN, 1,
+                PSYS_SRC_BURST_SPEED_MAX, 1
+
+            ]);
+        } else {
+            llParticleSystem([ ]);
+        }
+    }
 
     default {
 
@@ -371,6 +449,7 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
             llSetLinkPrimitiveParamsFast(LINK_THIS, [
                 PRIM_TEXT, "", ZERO_VECTOR, 0
             ]);
+            tail(0);
         }
 
         on_rez(integer start_param) {
@@ -399,8 +478,6 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                 //  Inform the deployer that we are now listening
                 llRegionSayTo(deployer, massChannel,
                     llList2Json(JSON_ARRAY, [ "PLANTED", m_index ]));
-
-                stepCount = 0;
 
                 initState = 1;          // Waiting for SETTINGS and INIT
             }
@@ -452,15 +529,11 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                     } else if (ccmd == "PINIT") {
                         if (m_index == llList2Integer(msg, 1)) {
                             m_name = llList2String(msg, 2);             // Name
-                            deployerPos = (vector) llList2String(msg, 3); // Deployer position
-                            m_scalePlanet = llList2Float(msg, 4);       // Planet scale
-                            m_scaleStar =  llList2Float(msg, 5);        // Star scale
+                            deployerPos = sv(llList2String(msg, 3));    // Deployer position
+                            m_scalePlanet = siuf(llList2String(msg, 4));    // Planet scale
+                            m_scaleStar =  siuf(llList2String(msg, 5)); // Star scale
                             m_jd = llList2Integer(msg, 6);              // Epoch Julian day
-                            m_jdf = llList2Float(msg, 7);               // Epoch Julian day fraction
-
-                            /* IF TRACE */
-                            b1 = m_index == 1;
-                            /* END TRACE */
+                            m_jdf = siuf(llList2String(msg, 7));        // Epoch Julian day fraction
 
                             //  Set properties of object
                             float oscale = m_scalePlanet;
@@ -476,7 +549,9 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                                              llList2Float(planet, 15) > * 0.0001 * oscale;
 */
 vector psize = llList2Vector(llGetLinkPrimitiveParams(LINK_THIS, [ PRIM_SIZE ]), 0);
-psize *= 0.1;
+float pscale = 0.1;
+psize *= pscale;
+llMessageLinked(LINK_THIS, LM_CO_SCALE, (string) pscale, id);
 
                             //  Calculate rotation to correctly orient north pole
 
@@ -485,9 +560,6 @@ psize *= 0.1;
                                 npole.x * DEG_TO_RAD, npole.y * DEG_TO_RAD);
                             vector npvec = sphRect(llList2Float(npecl, 0), llList2Float(npecl, 1), 1);
                             rotation nprot = llRotBetween(<-1, 0, 0>, npvec);
-/* tawk("JD " + (string) m_jd + "  JDF " + (string) m_jdf +
-    "  obliqeq " + (string) obliqeq(m_jd, m_jdf) +
-    "  pole " + (string) sphRect(llList2Float(npecl, 0), llList2Float(npecl, 1), 1)); */
 
                             llSetLinkPrimitiveParamsFast(LINK_THIS, [
                                 PRIM_DESC,  llList2Json(JSON_ARRAY,
@@ -500,43 +572,45 @@ psize *= 0.1;
                             initState = 2;                  // INIT received, waiting for SETTINGS
                         }
 
-                    //  RESET  --  Restore initial position and velocity
-
-                    } else if (ccmd == "RESET") {
-
                     //  SETTINGS  --  Set simulation parameters
 
                     } else if (ccmd == "SETTINGS") {
                         integer bn = llList2Integer(msg, 1);
                         if ((bn == 0) || (bn == m_index)) {
+                            integer o_labels = s_labels;
+
                             paths = llList2Integer(msg, 2);
                             s_trace = llList2Integer(msg, 3);
-                            s_kaboom = (float) llList2String(msg, 4);
-                            s_auscale = (float) llList2String(msg, 5);
-                            s_radscale = (float) llList2String(msg, 6);
+                            s_kaboom = siuf(llList2String(msg, 4));
+                            s_auscale = siuf(llList2String(msg, 5));
+                            s_radscale = siuf(llList2String(msg, 6));
                             s_trails = llList2Integer(msg, 7);
-                            s_pwidth = (float) llList2String(msg, 8);
-                            s_mindist = (float) llList2String(msg, 9);
+                            s_pwidth = siuf(llList2String(msg, 8));
+                            s_mindist = siuf(llList2String(msg, 9));
+                            s_labels = llList2Integer(msg, 21);
+
+                            if ((!s_labels) && o_labels) {
+                                llSetLinkPrimitiveParamsFast(LINK_THIS, [
+                                    PRIM_TEXT, "", ZERO_VECTOR, 0
+                                ]);
+                            }
                         }
 
                         if (initState == 2) {
                             initState = 3;                  // INIT and SETTINGS received, now flying
-                            startTime = llGetTime();        // Remember when we started
                         }
 
                         //  Set or clear particle trail depending upon paths
                         if (paths) {
                             llParticleSystem(
                                 [ PSYS_PART_FLAGS, PSYS_PART_EMISSIVE_MASK |
-                                    PSYS_PART_INTERP_COLOR_MASK |
-                                    PSYS_PART_RIBBON_MASK,
+                                  PSYS_PART_INTERP_COLOR_MASK |
+                                  PSYS_PART_RIBBON_MASK,
                                   PSYS_SRC_PATTERN, PSYS_SRC_PATTERN_DROP,
                                   PSYS_PART_START_COLOR, m_colour,
                                   PSYS_PART_END_COLOR, m_colour,
-///                                  PSYS_PART_START_SCALE, <0.25, 0.25, 0.25>,
-//                                  PSYS_PART_END_SCALE, <0.25, 0.25, 0.25>,
-PSYS_PART_START_SCALE, <0.75, 0.75, 1>,
-PSYS_PART_END_SCALE, <0.75, 0.75, 1>,
+                                  PSYS_PART_START_SCALE, <0.75, 0.75, 1>,
+                                  PSYS_PART_END_SCALE, <0.75, 0.75, 1>,
                                   PSYS_SRC_MAX_AGE, 0,
                                   PSYS_PART_MAX_AGE, 8.0,
                                   PSYS_SRC_BURST_RATE, 0.0,
@@ -549,16 +623,8 @@ PSYS_PART_END_SCALE, <0.75, 0.75, 1>,
                     //  UPDATE  --  Update mass position
 
                     } else if (ccmd == "UPDATE") {
-if (llList2Integer(msg, 1) != m_index) {
-    tawk(m_name + ": Huh?  Got update for wrong index: " + llList2CSV(msg));
-    return;
-}
-if ((stepCount % 64) == 0) {
-    stepTime = llGetTime();
-}
-//tawk(m_name + ":  " + llList2CSV(msg));
                         vector p = llGetPos();
-                        vector npos = (vector) llList2String(msg, 2);
+                        vector npos = sv(llList2String(msg, 2));
                         //  Distance from previous position
                         float dist = llVecDist(p, npos);
                         //  Distance (AU) from the Sun
@@ -571,40 +637,38 @@ if (s_trace) {
                             kaboom();
                             return;
                         }
+
                         if (dist >= s_mindist) {
+                            llSetLinkPrimitiveParamsFast(LINK_THIS,
+                                [ PRIM_POSITION, npos ]);
+                            if (paths) {
+                                llSetLinkPrimitiveParamsFast(LINK_THIS,
+                                    [ PRIM_ROTATION, llRotBetween(<0, 0, 1>, (npos - p)) ]);
+                            }
                             if (s_trails) {
                                 flPlotLine(p, npos, m_colour, s_pwidth);
                             }
-                            llSetLinkPrimitiveParamsFast(LINK_THIS,
-                                [ PRIM_POSITION, npos ]);
-if (paths) {
-llSetLinkPrimitiveParamsFast(LINK_THIS,
-    [ PRIM_ROTATION, llRotBetween(<0, 0, 1>, (npos - p)) ]);
-}
-stepMove++;
+                            float tailLen = 1 - ((rvec - 1) / 3);
+                            if (tailLen < 0) {
+                                tailLen = 0;
+                            } else if (tailLen > 1) {
+                                tailLen = 1;
+                            }
+                            tail(tailLen);
+                            llMessageLinked(LINK_ALL_OTHERS, LM_CO_COMA,
+                                (string) tailLen, id);
                         }
                         updateLegend((npos - deployerPos) / s_auscale);
-stepCount++;
-/*  For benchmarks
-if ((stepCount % 64) == 0) {
-    float dt = llGetTime() - stepTime;
-    tawk(m_name + ": Update time: " + (string) dt + "  (Step " + (string) stepCount + ", " +
-        (string) stepMove + " moves)");
-}
-*/
                     }
                 }
             }
         }
 
-        //  Toggle legend on touch
-
+        //  Touch to toggle for debugging
         touch_start(integer n) {
-            s_legend = !s_legend;
-            if (!s_legend) {
-                llSetLinkPrimitiveParamsFast(LINK_THIS, [
-                    PRIM_TEXT, "", ZERO_VECTOR, 0
-                ]);
-            }
+            tailtogg = 1 - tailtogg;
+            tail(tailtogg);
+            llMessageLinked(LINK_ALL_OTHERS, LM_CO_COMA,
+                (string) tailtogg, owner);
         }
      }

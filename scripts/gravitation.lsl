@@ -1,5 +1,5 @@
     /*
-                     Fourmilab Gravitation
+                       Fourmilab Orbits
 
                         by John Walker
     */
@@ -158,21 +158,20 @@
                             mass,               // 1
                             paths,              // 2
                             trace,              // 3
-                            hf(s_kaboom),       // 4
-                            hf(s_auscale),      // 5
-                            hf(s_radscale),     // 6
+                            fuis(s_kaboom),     // 4
+                            fuis(s_auscale),    // 5
+                            fuis(s_radscale),   // 6
                             s_trails,           // 7
-                            hf(s_pwidth),       // 8
-                            hf(s_mindist),      // 9
-
-                            hf(s_deltat),       // 10
+                            fuis(s_pwidth),     // 8
+                            fuis(s_mindist),    // 9
+                            fuis(s_deltat),     // 10
                             s_eclipshown,       // 11
-                            hf(s_eclipsize),    // 12
+                            fuis(s_eclipsize),  // 12
                             s_realtime,         // 13
-                            hf(s_realstep),     // 14
-                            hf(s_simRate),      // 15
-                            hf(s_stepRate),     // 16
-                            hf(s_zoffset),      // 17
+                            fuis(s_realstep),   // 14
+                            fuis(s_simRate),    // 15
+                            fuis(s_stepRate),   // 16
+                            fuis(s_zoffset),    // 17
                             s_legend ] +        // 18
                             simEpoch +          // 19,20
                             s_labels            // 21
@@ -206,48 +205,37 @@
         }
     }
 
-    /*  Copyright Strife Onizuka, 2006-2007, LGPL,
-        http://www.gnu.org/copyleft/lesser.html or (cc-by)
-        http://creativecommons.org/licenses/by/3.0/  */
+    /*  fuis  --  Float union to base64-encoded integer
+                  Designed and implemented by Strife Onizuka:
+                    http://wiki.secondlife.com/wiki/User:Strife_Onizuka/Float_Functions  */
 
-    string hv(vector v) {
-        return "<" + hf(v.x) + "," +
-                     hf(v.y) + "," +
-                     hf(v.z) + ">";
+    string fv(vector v) {
+        return fuis(v.x) + fuis(v.y) + fuis(v.z);
     }
 
-    string hexc = "0123456789ABCDEF";
+    string fuis(float a) {
+        //  Detect the sign on zero.  It's ugly, but it gets you there
+        integer b = 0x80000000 & ~llSubStringIndex(llList2CSV([a]), "-");   // Sign
 
-    /*  We rename Float2Hex to hf() to avoid cluttering the
-        many places we use it.  */
-    string hf(float input) {
-        if (input != (integer) input) {
-            string str = (string)input;
-            if (!~llSubStringIndex(str, ".")) {
-                //  NaN or Infinities
-                return str;
+        if ((a)) {      // Is it greater than or less than zero ?
+            //  Denormalized range check and last stride of normalized range
+            if ((a = llFabs(a)) < 2.3509887016445750159374730744445e-38) {
+                b = b | (integer)(a / 1.4012984643248170709237295832899e-45);   // Math overlaps; saves CPU time
+            } else if (a > 3.4028234663852885981170418348452e+38) { // Round up to infinity
+                b = b | 0x7F800000;                                 // Positive or negative infinity
+            } else if (a > 1.4012984643248170709237295832899e-45) { // It should at this point, except if it's NaN
+                integer c = ~-llFloor(llLog(a) * 1.4426950408889634073599246810019);
+                //  Extremes will error towards extremes. The following corrects it
+                b = b | (0x7FFFFF & (integer)(a * (0x1000000 >> c))) |
+                        ((126 + (c = ((integer)a - (3 <= (a *= llPow(2, -c))))) + c) * 0x800000);
+                //  The previous requires a lot of unwinding to understand
+            } else {
+                //  NaN time!  We have no way to tell NaNs apart so pick one arbitrarily
+                b = b | 0x7FC00000;
             }
-            float unsigned = llFabs(input);
-            integer exponent = llFloor((llLog(unsigned) / 0.69314718055994530941723212145818));
-
-            //  Shift mantissa into integer range
-            integer mantissa = (integer) ((unsigned /
-                ((float) ("0x1p" + (string) (exponent -= ((exponent >> 31) | 1))))) * 0x4000000);
-            //  Index of first one bit in mantissa
-            integer index = (integer) (llLog(mantissa & -mantissa) / 0.69314718055994530941723212145818);
-            str = "p" + (string) (exponent + index - 26);
-            mantissa = mantissa >> index;
-            do {
-                str = llGetSubString(hexc, 15 & mantissa, 15 & mantissa) + str;
-            } while ((mantissa = mantissa >> 4));
-
-            if (input < 0) {
-                return "-0x" + str;
-            }
-            return "0x" + str;
         }
-        //  It's an integral value: just return decimal integer string
-        return llDeleteSubString((string) input, -7, -1);
+
+        return llGetSubString(llIntegerToBase64(b), 0, 5);
     }
 
     /*  JDATE  --   Compute Julian date and fraction from UTC
@@ -1074,11 +1062,11 @@ updateEphemeris((1 << 10) - 2,
                     llRegionSayTo(id, massChannel,
                         llList2Json(JSON_ARRAY, [ "PINIT", mass_number,
                             llList2String(solarSystem, mass_number),    // Name of body
-                            hv(llGetPos() + <0, 0, s_zoffset>),         // Deployer position
-                            hf(m_scalePlanet),                          // Scale for planets
-                            hf(m_scaleStar),                            // Scale for stars
+                            fv(llGetPos() + <0, 0, s_zoffset>),         // Deployer position
+                            fuis(m_scalePlanet),                        // Scale for planets
+                            fuis(m_scaleStar),                          // Scale for stars
                             llList2Integer(simEpoch, 0),                // Epoch Julian day
-                            hf(llList2Float(simEpoch, 1))               // Epoch Julian day fraction
+                            fuis(llList2Float(simEpoch, 1))             // Epoch Julian day fraction
                     ]));
 
                     //  Send initial settings
@@ -1187,27 +1175,22 @@ updateEphemeris((1 << 10) - 2,
 
                             updateLegend();
                             for (i = 1; i <= 10; i++) {
-    if (llList2Key(planetKeys, i) != NULL_KEY) {
-                                integer p = i * 3;
-                                vector where = sphRect(
-                                    llList2Float(ephBodies, p),
-                                    llList2Float(ephBodies, p + 1),
-                                    llList2Float(ephBodies, p + 2));
+                                if (llList2Key(planetKeys, i) != NULL_KEY) {
+                                    integer p = i * 3;
+                                    vector where = sphRect(
+                                        llList2Float(ephBodies, p),
+                                        llList2Float(ephBodies, p + 1),
+                                        llList2Float(ephBodies, p + 2));
 
-                                vector eggPos = llGetPos();
+                                    vector eggPos = llGetPos();
 
-                                vector rwhere = (where * s_auscale) + eggPos + <0, 0, s_zoffset>;
-                                llRegionSayTo(llList2Key(planetKeys, i), massChannel,
-                                    llList2Json(JSON_ARRAY, [ "UPDATE", i,
-                                        hv(rwhere),                     // New rectangular co-ordinates
-                                        llList2Integer(simEpoch, 0),    // Epoch Julian day
-                                        hf(llList2Float(simEpoch, 1))   // Epoch Julian day fraction
-                                ]));
-
-/*tawk("Send update: " + llList2Json(JSON_ARRAY, [ "UPDATE", i,
-        llList2String(solarSystem, i),
-        (string) rwhere
-]) + "  where " + (string) where + "  s_auscale " + (string) s_auscale);*/
+                                    vector rwhere = (where * s_auscale) + eggPos + <0, 0, s_zoffset>;
+                                    llRegionSayTo(llList2Key(planetKeys, i), massChannel,
+                                        llList2Json(JSON_ARRAY, [ "UPDATE", i,
+                                            fv(rwhere),                         // New rectangular co-ordinates
+                                            llList2Integer(simEpoch, 0),        // Epoch Julian day
+                                            fuis(llList2Float(simEpoch, 1))     // Epoch Julian day fraction
+                                    ]));
                                 }
                             }
                         }
