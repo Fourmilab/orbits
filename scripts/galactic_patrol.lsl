@@ -36,23 +36,10 @@
     //  Settings communicated by deployer
     float s_kaboom = 50;                // Self destruct if this far (AU) from deployer
     float s_auscale = 0.3;              // Astronomical unit scale
-    float s_radscale = 0.0000025;       // Radius scale
-    integer s_trails = FALSE;           // Show trails with temporary prims
-    float s_pwidth = 0.01;              // Paths/trails width
-    float s_mindist = 0.01;             // Minimum distance to update
     integer s_labels = FALSE;           // Show labels on objects
     //  These settings are not sent to the masses
-    float s_deltat = 0.01;              // Integration time step
     float s_zoffset = 1;                // Z offset to create masses
     integer s_legend = FALSE;           // Display legend above deployer
-    float s_simRate = 1;                // Simulation rate (years/second)
-    float s_stepRate = 0.1;             // Integration step rate (years/step)
-    integer s_eclipshown = FALSE;       // Showing the ecliptic
-    float s_eclipsize = 30;             // Radius of ecliptic plane
-    integer s_realtime = FALSE;         // Display solar system in real time
-    float s_realstep = 30;              // Real time update interval, seconds
-    integer s_trace = FALSE;            // Trace mass behaviour
-    integer paths = FALSE;              // Show particle trails from mass ?
 
     list simEpoch;                      // Epoch of simulation
 
@@ -60,8 +47,13 @@
 
     //  Command processor messages
 
-    integer LM_CP_RESUME = 225;         // Resume script after command
+//    integer LM_CP_RESUME = 225;         // Resume script after command
     integer LM_CP_REMOVE = 226;         // Remove simulation objects
+
+    //  Ephemeris calculation messages
+
+    integer LM_EP_CALC = 431;           // Calculate ephemeris
+    integer LM_EP_RESULT = 432;         // Ephemeris calculation result
 
     //  Auxiliary services messages
 
@@ -69,10 +61,10 @@
 
     //  Orbit messages
 
-    integer LM_OR_PLOT = 601;           // Plot orbit for body
-    integer LM_OR_ELLIPSE = 602;        // Fit ellipse to body
-    integer LM_OR_ELEMENTS = 603;       // Orbital elements for ellipse object
-    integer LM_OR_DRAW = 605;           // Draw a line of an orbit
+//    integer LM_OR_PLOT = 601;           // Plot orbit for body
+//    integer LM_OR_ELLIPSE = 602;        // Fit ellipse to body
+//    integer LM_OR_ELEMENTS = 603;       // Orbital elements for ellipse object
+//    integer LM_OR_DRAW = 605;           // Draw a line of an orbit
 
     //  Galactic patrol messages
 
@@ -105,21 +97,52 @@
                     http://wiki.secondlife.com/wiki/User:Strife_Onizuka/Float_Functions  */
 
     string fuis(float a) {
-        integer b = 0x80000000 & ~llSubStringIndex(llList2CSV([a]), "-");   // Sign
-        if ((a)) {      // Is it greater than or less than zero?
-            if ((a = llFabs(a)) < 2.3509887016445750159374730744445e-38) {  // Denormalized range check & last stride of normalized range
-                b = b | (integer)(a / 1.4012984643248170709237295832899e-45);   // Math overlaps; saves cpu time.
-            } else if(a > 3.4028234663852885981170418348452e+38) {          // Round up to infinity
-                b = b | 0x7F800000;                                         // Positive or negative infinity
-            } else if (a > 1.4012984643248170709237295832899e-45) {         // It should at this point, except if it's NaN
-                integer c = ~-llFloor(llLog(a) * 1.4426950408889634073599246810019);    // Extremes will error towards extremes. The following corrects it
-                b = b | (0x7FFFFF & (integer)(a * (0x1000000 >> c))) | ((126 + (c = ((integer)a - (3 <= (a *= llPow(2, -c))))) + c) * 0x800000);
-                // The previous requires a lot of unwinding to understand it.
+        //  Detect the sign on zero.  It's ugly, but it gets you there
+        //  integer b = 0x80000000 & ~llSubStringIndex(llList2CSV([a]), "-");   // Sign
+        /*  Test for negative number, ignoring the difference between
+            +0 and -0.  While this does not preserve floating point
+            numbers bit-for-bit, it doesn't make any difference in
+            our calculations and is almost three times faster than
+            the original code above.  */
+        integer b = 0;
+        if (a < 0) {
+            b = 0x80000000;
+        }
+
+        if (a) {        // Is it greater than or less than zero ?
+            //  Denormalized range check and last stride of normalized range
+            if ((a = llFabs(a)) < 2.3509887016445750159374730744445e-38) {
+                b = b | (integer) (a / 1.4012984643248170709237295832899e-45);   // Math overlaps; saves CPU time
+            //  We never need to transmit infinity, so save the time testing for it.
+            // } else if (a > 3.4028234663852885981170418348452e+38) { // Round up to infinity
+            //     b = b | 0x7F800000;                                 // Positive or negative infinity
+            } else if (a > 1.4012984643248170709237295832899e-45) { // It should at this point, except if it's NaN
+                integer c = ~-llFloor(llLog(a) * 1.4426950408889634073599246810019);
+                //  Extremes will error towards extremes. The following corrects it
+                b = b | (0x7FFFFF & (integer) (a * (0x1000000 >> c))) |
+                        ((126 + (c = ((integer) a - (3 <= (a *= llPow(2, -c))))) + c) * 0x800000);
+                //  The previous requires a lot of unwinding to understand
             } else {
-                b = b | 0x7FC00000;//NaN time! We have no way to tell NaN's apart so lets just choose one.
+                //  NaN time!  We have no way to tell NaNs apart so pick one arbitrarily
+                b = b | 0x7FC00000;
             }
-        }//for grins, detect the sign on zero. it's not pretty but it works.
+        }
+
         return llGetSubString(llIntegerToBase64(b), 0, 5);
+    }
+
+    /*  siuf  --  Base64 encoded integer to float
+                  Designed and implemented by Strife Onizuka:
+                    http://wiki.secondlife.com/wiki/User:Strife_Onizuka/Float_Functions  */
+
+    float siuf(string b) {
+        integer a = llBase64ToInteger(b);
+        if (0x7F800000 & ~a) {
+            return llPow(2, (a | !a) + 0xffffff6a) *
+                      (((!!(a = (0xff & (a >> 23)))) * 0x800000) |
+                       (a & 0x7fffff)) * (1 | (a >> 31));
+        }
+        return (!(a & 0x7FFFFF)) * (float) "inf" * ((a >> 31) | 1);
     }
 
     //  sgn  --  Return sign of argument
@@ -153,9 +176,9 @@
                      are the eccentricity (e), time since periapse (t),
                      distance at periapse (q), and the Gaussian
                      gravitational constant (GM) for the central
-                     body.  A list is returned
-                     containing the true anomaly v (radians) and
-                     the radius vector to the central body r (AU).  */
+                     body.  A list is returned containing the
+                     true anomaly v (radians) and the radius
+                     vector to the central body r (AU).  */
 
     list gKepler(float e, float t, float q, float K) {
 //tawk("gKepler e " + (string) e + "  t " + (string) t + "  q " + (string) q + " K " + (string) K);
@@ -297,15 +320,16 @@
         return ZERO_VECTOR;
     }
 
-    //  posMP  --  Compute position of currently-tracked source
+    //  posGS  --  Compute position of currently-tracked source
 
-    list posMP(integer src, integer jd, float jdf) {
+    list posGS(integer src, integer jd, float jdf) {
 src--;
 s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
         vector pos = computeOrbit(s_elem, [ jd, jdf ]);
         return [ pos.x, pos.y, pos.z ];
     }
 
+/*
     //  sumJD  --  Compute sum of Julian date list with float duration
 
     list sumJD(list jd, float dur) {
@@ -335,6 +359,7 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
         llMessageLinked(LINK_THIS, LM_OR_DRAW,
             llList2CSV([ from, to, segcol, 0.01, flPlotPerm ]), whoDat);
     }
+*/
 
     //  elKaboom  --  Determine if a source has moved out of range or region
 
@@ -408,37 +433,54 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                 source_keys = [ ];          // Keys of deployed sources
                 nCentres = 0;               // Number of central bodies
 
+            //  LM_EP_CALC (431): Calculate ephemeris
+
+            } else if (num == LM_EP_CALC) {
+                if (s_sources != [ ]) {
+                    list args = llCSV2List(str);
+                    integer argn = llGetListLength(args);
+                    integer body = llList2Integer(args, 0);
+                    integer body_k = (body >> 16) - 1;
+                    integer i = body_k * s_sourcesE;
+                    if ((i >= 0) && (i < llGetListLength(s_sources))) {
+                        s_elem = llList2List(s_sources, i, i + (s_sourcesE - 1));
+//tawk("EP_CALC args " + llList2CSV(args) + " body_k " + (string) body_k + " i " + (string) i +
+// " " + llList2CSV(s_elem));
+                        list eph = [ ];
+
+                        for (i = 1; (i + 1) < argn; i += 2) {
+                            eph += posGS(body_k + 1, llList2Integer(args, i),
+                                                     llList2Float(args, i + 1));
+                        }
+//tawk("EP_CALC " + llList2CSV(s_elem) + "\n  " + llList2CSV(eph) + "\n  args " + llList2CSV(args) +
+//    " body_k " + (string) body_k);
+                        integer handle = llList2Integer(args, i);
+                        llMessageLinked(LINK_THIS, LM_EP_RESULT,
+                            (string) body + "," +
+                            llList2CSV(eph + [ handle ]), id);
+                    }
+                }
+
             //  LM_AS_SETTINGS (542): Update settings from main script
 
             } else if (num == LM_AS_SETTINGS) {
                 list msg = llJson2List(str);
 
-                paths = llList2Integer(msg, 2);
-                s_trace = llList2Integer(msg, 3);
-                s_kaboom = (float) llList2String(msg, 4);
-                s_auscale = (float) llList2String(msg, 5);
-                s_radscale = (float) llList2String(msg, 6);
-                s_trails = llList2Integer(msg, 7);
-                s_pwidth = (float) llList2String(msg, 8);
-                s_mindist = (float) llList2String(msg, 9);
-                s_deltat = (float) llList2String(msg, 10);
-                s_eclipshown = llList2Integer(msg, 11);
-                s_eclipsize = (float) llList2String(msg, 12);
-                s_realtime = llList2Integer(msg, 13);
-                s_realstep = (float) llList2String(msg, 14);
-                s_simRate = (float) llList2String(msg, 15);
-                s_stepRate = (float) llList2String(msg, 16);
-                s_zoffset = (float) llList2String(msg, 17);
+                /*  We only decode settings in which we're interested
+                    or wish to pass on to masses we've created.  */
+                s_kaboom = siuf(llList2String(msg, 4));
+                s_auscale = siuf(llList2String(msg, 5));
+                s_zoffset = siuf(llList2String(msg, 17));
                 s_legend = llList2Integer(msg, 18);
                 simEpoch = llList2List(msg, 19, 20);
                 s_labels = llList2Integer(msg, 21);
 
+/*
             //  LM_OR_PLOT (601): Plot orbit
 
-            } else if (num == LM_OR_PLOT) {
+            } else if (num == 999999 + LM_OR_PLOT) {
                 if (s_sources != [ ]) {
                     list l = llCSV2List(str);
-//tawk("Orbit " + llList2CSV(l));
                     integer i;
                     integer k = 1;
                     integer n = llGetListLength(s_sources);
@@ -462,7 +504,7 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                             o_jdf = llList2Float(l, 2);         // Julian day fraction
                         } else {
                             /*  If the orbit is parabolic or hyperbolic,
-                                commence plotting at the periapse.  */
+                                commence plotting at the periapse.  *_/
                             o_jd = llList2Integer(s_elem, 11);
                             o_jdf = llList2Float(s_elem, 12);
                             o_arm = 0;                              // Start on positive time arm
@@ -484,7 +526,7 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                         vector pXYZ0;
                         vector pXYZl;
                         for (i = 0; i < o_nsegments; i++) {
-                            list orbXYZ =  posMP(k, o_jd, o_jdf);
+                            list orbXYZ =  posGS(k, o_jd, o_jdf);
                             vector wXYZ = < llList2Float(orbXYZ, 0),
                                             llList2Float(orbXYZ, 1),
                                             llList2Float(orbXYZ, 2) >;
@@ -523,10 +565,9 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
 
             //  LM_OR_ELLIPSE (602): Plot orbit ellipse
 
-            } else if (num == LM_OR_ELLIPSE) {
+            } else if (num == 999999 + LM_OR_ELLIPSE) {
                 if (s_sources != [ ]) {
                     list l = llCSV2List(str);
-//tawk("Ellipse " + llList2CSV(l));
                     integer i;
                     integer k = 1;
                     integer n = llGetListLength(s_sources);
@@ -539,8 +580,9 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                         }
                     }
                     @foundIt;
+
                     /*  We can only display an ellipse if an object is being
-                        tracked and its eccentricity is less than 1.  */
+                        tracked and its eccentricity is less than 1.  *_/
                     if ((s_elem != [ ]) &&
                         (llList2Float(s_elem, 4) < 1)) {
                         float o_auscale = llList2Float(l, 3);           // Astronomical unit scale factor
@@ -549,7 +591,7 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
 
                         //  Compute the location of the periapse
 
-                        list periXYZ =  posMP(k,llList2Integer(s_elem, 11),
+                        list periXYZ =  posGS(k,llList2Integer(s_elem, 11),
                                                 llList2Float(s_elem, 12));
                         vector wXYZ = < llList2Float(periXYZ, 0),
                                         llList2Float(periXYZ, 1),
@@ -561,7 +603,7 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
 
                         list pjd = sumJD(llList2List(s_elem, 11, 12),
                                          pdays / 2);
-                        list apoXYZ = posMP(k, llList2Integer(pjd, 0),
+                        list apoXYZ = posGS(k, llList2Integer(pjd, 0),
                                                llList2Float(pjd, 1));
                         wXYZ = < llList2Float(apoXYZ, 0),
                                  llList2Float(apoXYZ, 1),
@@ -574,7 +616,7 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                         list cjd = sumJD(llList2List(s_elem, 11, 12),
                                             pdays *
                                             (0.25 - (llList2Float(s_elem, 4) / TWO_PI)));
-                        list cvxLBR = posMP(k, llList2Integer(cjd, 0),
+                        list cvxLBR = posGS(k, llList2Integer(cjd, 0),
                                                llList2Float(cjd, 1));
                         wXYZ = < llList2Float(cvxLBR, 0),
                                  llList2Float(cvxLBR, 1),
@@ -585,7 +627,7 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                         /*  Compose and send a LM_OR_ELEMENTS message to the
                             Orbits module with "just the facts" needed for it
                             to configure an "Orbit ellipse" object to represent
-                            the orbit.  */
+                            the orbit.  *_/
 
                         llMessageLinked(LINK_THIS, LM_OR_ELEMENTS,
                             llList2Json(JSON_ARRAY, [
@@ -599,8 +641,8 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                                 cXYZr                       // 7    Co-vertex location
                             ]), whoDat);
                     }
-
                 }
+*/
 
             //  LM_GP_UPDATE (771):  Update positions for Julian day
 
@@ -615,12 +657,10 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                 string upbulk = "U:";
                 integer upbulkL = 2;
 
-//tawk("n = " + (string) n + " keys " + llList2CSV(source_keys));
-
                 for (i = 1; i <= n; i++) {
                     key k = llList2Key(source_keys, i - 1);
                     if (k != NULL_KEY) {
-                        list p = posMP(i, jd, jdf);
+                        list p = posGS(i, jd, jdf);
                         vector pos = < llList2Float(p, 0), llList2Float(p, 1), llList2Float(p, 2) >;
                         vector rwhere = (pos * s_auscale) + deployerPos;
                         if (elKaboom(rwhere, deployerPos)) {
@@ -647,13 +687,11 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                     }
                 }
                 llRegionSay(massChannel, "V" + llGetSubString(upbulk, 1, -1));
-//tawk("V" + llGetSubString(upbulk, 1, -1));
 
             //  LM_GP_CENTRE (774): Define new central mass
 
             } else if (num == LM_GP_CENTRE) {
                 list l = llJson2List(str);
-//tawk("CTR " + llList2CSV(l));
 
                 kCentre = llList2Key(l, 1);
                 nCentre = llList2String(l, 2);
@@ -674,7 +712,7 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                 integer epochJD = llList2Integer(l, 2);         // Epoch Julian day and fraction
                 float epochJDf = llList2Float(l, 3);
                 s_sources += llList2List(l, 4, -1);             // Source parameters
-                list p = posMP(sindex, epochJD, epochJDf);
+                list p = posGS(sindex, epochJD, epochJDf);
                 vector pos = < llList2Float(p, 0), llList2Float(p, 1), llList2Float(p, 2) >;
                 vector rwhere = (pos * s_auscale) + llGetPos() + <0, 0, s_zoffset>;
                 llRegionSayTo(skey, massChannel, "U:{" + (string) sindex + "}" +

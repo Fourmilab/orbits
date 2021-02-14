@@ -41,11 +41,25 @@
     ];
     integer bodiesE = 4;            // Length of bodies entry
 
+    /*  Galactic Centre source properties
+
+            0   Source index (1, n)
+            1   Name
+            2   Orbital period (NaN if eccentricity >= 1)
+            3,4 Periapse date
+            5   Eccentricity
+            6   Semi-major axis (NaN if eccentricity >= 1)
+    */
+
+    list gc_source = [ ];
+    integer gc_sourceE = 7;         // Length of source entry
+
     //  Parameters for current orbit plotting task
 
     integer o_body;                     // Body
-    integer o_jd;                       // Julian day
-    float o_jdf;                        // Julian day fraction
+//    integer o_jd;                       // Julian day
+//    float o_jdf;                        // Julian day fraction
+    list o_jd;                          // Julian day and fraction
     float o_auscale;                    // Astronomical unit scale factor
     integer o_nsegments;                // Number of segments to plot
     vector o_sunpos;                    // Position of Sun in region
@@ -53,18 +67,23 @@
     list mp_peri;                       // Time of perihelion for non-elliptical orbit
     float o_aulimit = 10;               // Orbit plotting limit in AU
     integer o_parahyper;                // Parabolic/hyperbolic orbit for tracked body ?
-    integer o_arm;                      // Arm of parabola/hyperbola being plotted
 
+    integer o_bselect;                  // Select index for body
     integer o_csegment;                 // Current segment
     float o_timestep;                   // Time step per segment
-    vector o_ostart;                    // Location of orbit start
     vector o_olast;                     // Location of previous segment
+
+    float angsegMax = 0.0872664626;     // 5 * DEG_TO_RAD
+    vector o_prevseg;                   // Previous segment of orbit plot
+    list prev_o_jd;                     // Start time of previous segment
+    float eff_timestep = 0;             // Effective time step from adaptive adjustment
+    list o_enddate;                     // End date of orbit plot
 
     //  Command processor messages
 
     integer LM_CP_COMMAND = 223;        // Process command
     integer LM_CP_RESUME = 225;         // Resume script after command
-//    integer LM_CP_REMOVE = 226;         // Remove simulation objects
+    integer LM_CP_REMOVE = 226;         // Remove simulation objects
 
     //  Ephemeris calculator messages
 
@@ -75,13 +94,17 @@
 
     integer LM_MP_TRACK = 571;          // Notify tracking minor planet
 
+    //  Galactic centre messages
+
+    integer LM_GC_SOURCES = 752;        // Report number of sources
+
     //  Orbit messages
 
     integer LM_OR_PLOT = 601;           // Plot orbit for body
     integer LM_OR_ELLIPSE = 602;        // Fit ellipse to body
-    integer LM_OR_ELEMENTS = 603;       // Orbital elements for ellipse object
+//    integer LM_OR_ELEMENTS = 603;       // Orbital elements for ellipse object
 //    integer LM_OR_STAT = 604;           // Print status
-    integer LM_OR_DRAW = 605;           // Draw a line of an orbit
+//    integer LM_OR_DRAW = 605;           // Draw a line of an orbit
 
     //  tawk  --  Send a message to the interacting user in chat
 
@@ -115,6 +138,26 @@
         ajd += ajdfi;
         ajdf -= ajdfi;
         return [ ajd, ajdf ];
+    }
+
+    /*  compJD  --  Compare two Juilan days.  Returns:
+                    a > b       1
+                    a = b       0
+                    a < b      -1   */
+
+    integer compJD(list a, list b) {
+        integer ai = llList2Integer(a, 0);
+        float af = llList2Float(a, 1);
+        integer bi = llList2Integer(b, 0);
+        float bf = llList2Float(b, 1);
+
+        if ((ai == bi) && (af == bf)) {
+            return 0;
+        }
+        if ((ai > bi) || ((ai == bi) && (af > bf))) {
+            return 1;
+        }
+        return -1;
     }
 
     /*  jyearl  --  Convert Julian date/time list to year, month, day,
@@ -196,27 +239,35 @@
     ];
 
     list apsides(integer body, float year, integer apoapsis) {
-        body--;
-        integer bx = body * 2;
-        float k = llRound(llList2Float(apsK, bx) *
-                            (year - llList2Float(apsK, bx + 1)));
-        if (apoapsis) {
-            k += 0.5;
+        if (body < 10) {
+            //  Major planet: use tables above
+            body--;
+            integer bx = body * 2;
+            float k = llRound(llList2Float(apsK, bx) *
+                                (year - llList2Float(apsK, bx + 1)));
+            if (apoapsis) {
+                k += 0.5;
+            }
+            bx = body * 5;
+            integer jd = llList2Integer(apsTerms, bx);
+            float jdf = ((llList2Float(apsTerms, bx + 4) * (k * k)) +
+                         (llList2Float(apsTerms, bx + 3) * k) +
+                         (llList2Float(apsTerms, bx + 2) * k)) +
+                        llList2Float(apsTerms, bx + 1);
+            integer jdfi = llFloor(jdf);
+            jd += jdfi;
+            jdf -= jdfi;
+            return [ jd, jdf ];
+        } else {
+            //  Minor planet: compute from orbital elements
+            integer bx = body * bodiesE;
+            list tp = mp_peri;
+            if (apoapsis) {
+                //  Apoapsis time is periapsis plus half orbital period
+                tp = sumJD(tp, llList2Float(bodies, bx) / 2);
+            }
+            return tp;
         }
-        bx = body * 5;
-//tawk("zz " + llList2CSV(llList2List(apsTerms, bx, bx + 3)));
-//tawk("k = " + (string) k + " bx " + (string) bx + " le " + (string) llList2String(apsTerms, bx));
-        integer jd = llList2Integer(apsTerms, bx);
-        float jdf = ((llList2Float(apsTerms, bx + 4) * (k * k)) +
-                     (llList2Float(apsTerms, bx + 3) * k) +
-                     (llList2Float(apsTerms, bx + 2) * k)) +
-                    llList2Float(apsTerms, bx + 1);
-//tawk("jd " + (string) jd + " jdf " + (string) jdf);
-        integer jdfi = llFloor(jdf);
-        jd += jdfi;
-        jdf -= jdfi;
-
-        return [ jd, jdf ];
     }
 
     //  flRezRegion  --  Rez object anywhere in region
@@ -283,7 +334,6 @@
         if (flPlotPerm) {
             lineObj = "flPlotLine Permanent";
         }
-//tawk("Plotting " + lineObj + " at " + (string) midPoint);
         flRezRegion(lineObj, midPoint, ZERO_VECTOR,
             llRotBetween(<0, 0, 1>, llVecNorm(toPoint - midPoint)),
             ((diax << 22) | (icolour << 10) | ilength)
@@ -318,7 +368,6 @@
 
     createOrbitEllipse(string args) {
         list el = llJson2List(args);
-//tawk(llList2CSV(el));
         integer m_body = llList2Integer(el, 0);
         string m_name = llList2String(el, 1);
         vector m_periapse = (vector) llList2String(el, 2);
@@ -327,19 +376,20 @@
         float m_e = llList2Float(el, 5);
         float s_auscale = llList2Float(el, 6);
         vector m_covertex = (vector) llList2String(el, 7);
+//tawk("createOrbitEllipse " + llList2CSV(el));
 
         //  Parameters derived from elements
 
         vector c_centre = (m_periapse + m_apoapse) / 2; // Centre point
         float c_b = m_a * llSqrt(1 - (m_e * m_e));      // Semi-minor axis
-//        vector c_plnorm = llVecNorm(m_periapse - c_centre) %    // Normal to orbital plane
-//            llVecNorm(m_covertex - c_centre);
 
 //  Mark periapse, apoapse, co-vertex, centre, and normal
 //markerBall(m_periapse, 0.1, <1, 0.25, 0.25>);       // Periapse: red
 //markerBall(m_apoapse, 0.1, <0.25, 1, 0.25>);        // Apoapse: green
 //markerBall(c_centre, 0.1, <1, 1, 0.25>);            // Centre: yellow
 //markerBall(m_covertex, 0.1, <0.25, 0.25, 1>);       // Co-vertex: blue
+// vector c_plnorm = llVecNorm(m_periapse - c_centre) %    // Normal to orbital plane
+//    llVecNorm(m_covertex - c_centre);
 //markerBall(c_centre + (c_plnorm * 0.15), 0.1, <1, 0.25, 1>);    // Normal to centre: magenta
 
         // Align ellipse semi-major axis with orbit's
@@ -471,6 +521,7 @@
             integer argn = llGetListLength(args);
 
             string body = llList2String(args, 1);
+
             /*  If we are displaying the Solar System model, allow the
                 user to specify the name of the object, including a minor
                 planet being tracked, by its (full and exact) name as
@@ -481,6 +532,16 @@
                 if (p > bodiesE) {
                     body = (string) ((p - 3) / bodiesE);
                 }
+
+            /*  If we are displaying the Galactic Centre model, similarly
+                allow specifying the source by name.  */
+
+            } else if (gc_source != [ ]) {
+                integer p = llListFindList(gc_source, [ body ]);
+                if (p > 0) {
+                    body = (string) (((p - 1) / gc_sourceE) + 1);
+                }
+//tawk("GC source (" + llList2String(args, 1) + ") = " + body);
             }
 
             integer segments = 96;
@@ -518,6 +579,7 @@
                     "  Used: " + (string) mUsed + " (" +
                     (string) ((integer) llRound((mUsed * 100.0) / (mUsed + mFree))) + "%)";
             tawk(s);
+//tawk("  gc_source:\n    " + llList2CSV(gc_source));
         }
         return TRUE;
     }
@@ -543,60 +605,134 @@
             if (num == LM_CP_COMMAND) {
                 processAuxCommand(id, llJson2List(str));
 
+            //  LM_CP_COMMAND (226): Remove model
+
+            } if (num == LM_CP_REMOVE) {
+                //  Drop tracking of Solar System minor planet
+                integer bx = 10 * bodiesE;
+                bodies = llListReplaceList(bodies, [ -1.0 ], bx, bx);
+                gc_source = [ ];                // Remove Galactic Centre sources
+
             //  LM_OR_PLOT (601): Plot orbit
 
             } else if (num == LM_OR_PLOT) {
                 list l = llCSV2List(str);
-//tawk("Plot " + str);
-                o_body = llList2Integer(l, 0);      // Body
-                if (!o_parahyper) {
-                    o_jd = llList2Integer(l, 1);        // Julian day
-                    o_jdf = llList2Float(l, 2);         // Julian day fraction
-//o_jd = 2459241; o_jdf = 0.5;  // TEST CASE
-                } else {
-                    /*  If the orbit is parabolic or hyperbolic,
-                        commence plotting at the periapse.  */
-                    o_jd = llList2Integer(mp_peri, 0);
-                    o_jdf = llList2Float(mp_peri, 1);
-                    o_arm = 0;                      // Start on positive time arm
-                }
-                o_auscale = llList2Float(l, 3);     // Astronomical unit scale factor
-                o_nsegments = llList2Integer(l, 4); // Number of segments to plot
+                o_body = llList2Integer(l, 0);          // Body
+                o_auscale = llList2Float(l, 3);         // Astronomical unit scale factor
+                o_nsegments = llList2Integer(l, 4);     // Number of segments to plot
                 o_sunpos = (vector) llList2String(l, 5); // Position of Sun
-                flPlotPerm = llList2Integer(l, 6);  // Use permanent lines ?
+                flPlotPerm = llList2Integer(l, 6);      // Use permanent lines ?
+                integer gc = gc_source != [ ];          // Galactic Centre source ?
+                integer gx = (o_body - 1) * gc_sourceE; // Source list index
+                integer bx = o_body * bodiesE;          // Solar system body index
 
                 o_csegment = 0;                     // Current segment being plotted
-                float o_period = llList2Float(bodies, o_body * bodiesE);
+
+                float o_ecc;                        // Eccentricity
+                float o_period;                     // Orbital period if o_ecc < 1
+                if (gc) {
+                    //  Galactic Centre source
+                    o_bselect = (o_body << 16);
+                    o_ecc = llList2Float(gc_source, gx + 5);
+                    o_parahyper = o_ecc >= 1;
+                    if (!o_parahyper) {
+                        //  Convert years to days for period
+                        o_period = llList2Float(gc_source, gx + 2) * 365.25;
+                    } else {
+                        mp_peri = llList2List(gc_source, gx + 3, gx + 4);
+                    }
+//tawk("Orbit: " + llList2CSV(llList2List(gc_source, gx, gx + 5)));
+                } else {
+                    //  Solar System body
+                    o_bselect = 1 << o_body;
+                    o_ecc = llList2Float(bodies, bx + 1);
+                    if (!o_parahyper) {
+                        o_period = llList2Float(bodies, bx);
+                    }
+                }
                 if (o_parahyper) {
-//  HACK--THIS SHOULD BE BASED ON ECCENTRICITY SOMEHOW
-                    o_timestep = (5 * 365) / o_nsegments;
+                    o_timestep = (2.5 * 365) / o_nsegments;
                 } else {
                     o_timestep = o_period / o_nsegments;
                 }
-//tawk("Start calc " + llList2CSV([ o_parahyper, o_jd, o_jdf, o_timestep ] + mp_peri));
+                if (!o_parahyper) {
+                    o_jd = llList2List(l, 1, 2);    // Julian day and fraction
+                    o_enddate = sumJD(o_jd, o_timestep * o_nsegments);
+                } else {
+                    /*  If the trajectory is parabolic or hyperbolic, begin
+                        plotting at the start of the inbound arm toward the
+                        periapse and plot to the end of the outbound arm.  */
+                    o_jd = sumJD(mp_peri, -(o_timestep * o_nsegments));
+                    o_enddate = sumJD(mp_peri, o_timestep * o_nsegments);
+                }
+                //  Ending date for orbit computation (or arm if open trajectory)
+//tawk("Start date: " + llList2CSV(o_jd) + "  End date: " + llList2CSV(o_enddate));
+                //  Start the first ephemeris calculation
                 llMessageLinked(LINK_THIS, LM_EP_CALC,
-                    llList2CSV([ 1 << o_body, o_jd, o_jdf, ephHandle ]), id);
+                    llList2CSV([ o_bselect ] + o_jd + [ ephHandle ]), id);
 
             //  LM_EP_RESULT (432): Ephemeris calculation results
 
             } else if (num == LM_EP_RESULT) {
-               list l = llCSV2List(str);
+                list l = llCSV2List(str);
+                integer body = llList2Integer(l, 0);        // Body
+                integer gc = body >= 0x1000;                // Is this a Galactic Centre source ?
                //   Only process if handle is our own
                if (ephHandle == llList2Integer(l, -1)) {
-//                    integer body = llList2Integer(l, 0);    // Body
+                    vector where;
                     float L = llList2Float(l, 1);           // Ecliptical longitude
                     float B = llList2Float(l, 2);           // Ecliptical latitude
                     float R = llList2Float(l, 3);           // Radius
-
-                    vector where = sphRect(L, B, R);
-                    vector rwhere = (where * o_auscale) + o_sunpos;
-// ORBIT PLOT TRACE FOR COMPARISON WITH REFERENCE
-//tawk((string) o_jd + " " + (string) o_jdf + "  " +
-//    (string) (L * RAD_TO_DEG) + "  " + (string) (B * RAD_TO_DEG) +
-//    "  " + (string) R + "  " + (string) where);
-                    if (o_csegment == 0) {
-                        o_ostart = rwhere;
+                    if (!gc) {
+                        //  Solar System body
+                        where = sphRect(L, B, R);
                     } else {
+                        //  Galactic Centre source: already in rectangular co-ordinates
+                        where = < L, B, R >;
+                    }
+                    vector rwhere = (where * o_auscale) + o_sunpos;
+                    if (o_csegment == 0) {
+                        //  This is the first point, just save for first segment
+                        prev_o_jd = o_jd;
+                    } else {
+                        /*  This is the dreaded adaptive segment length
+                            computation.  We calculate the angle between
+                            this just-computed segment forms with the
+                            previous segment.  If this exceeds angSegMax,
+                            we conclude that we need more segments to avoid
+                            a Jagged Orbit.  This is accomplished by dividing
+                            the previously estimated o_timestep by a factor
+                            determined by the extent the measured angle
+                            exceeds the limit.  We then discard the
+                            just-computed ephemeris position and start a
+                            new computation with the reduced effective
+                            time step, eff_timestep.  */
+
+                        vector currseg = llVecNorm(rwhere - o_olast);
+                        if (o_prevseg != ZERO_VECTOR) {
+                            float angseg = llAcos(o_prevseg * currseg);
+//tawk("Sector " + (string) o_csegment + " angle " + (string) (angseg * RAD_TO_DEG) +
+//  "  JD " + llList2CSV(o_jd));
+                            if ((angseg > angsegMax) && ((eff_timestep == 0) || (llFabs(eff_timestep) > 1))) {
+                                integer splitseg = llCeil(angseg / angsegMax);
+                                float j_timestep = o_timestep;
+                                if (eff_timestep != 0) {
+                                    j_timestep = eff_timestep;
+                                }
+                                eff_timestep = j_timestep / splitseg;
+//tawk("  Split segment into " + (string) splitseg + " eff_timestep " + (string) eff_timestep +
+//     " o_timestep " + (string) o_timestep);
+                                o_jd = sumJD(prev_o_jd, eff_timestep);
+                                llMessageLinked(LINK_THIS, LM_EP_CALC,
+                                    llList2CSV([ o_bselect ] + o_jd + [ ephHandle ]), id);
+                                //  Done until computation of reduced segment result appears
+                                return;
+                            } else {
+                                eff_timestep = 0;
+                            }
+                        }
+                        o_prevseg = currseg;
+
 //tawk("Plot segment " + (string) o_csegment + " from " + (string) o_olast + " to " + (string) rwhere);
                         float meanZ = ((o_olast.z - o_sunpos.z) +
                             (rwhere.z - o_sunpos.z)) / 2;
@@ -609,52 +745,22 @@
                     o_csegment++;
                     o_olast = rwhere;
 
-                    /*  If the orbit is parabolic or hyperbolic, stop
-                        plotting it after we've either hit the maximum
-                        number of segments or the specified o_aulimit,
-                        which specifies the maximum distance we'll plot
-                        from the central body.  If we've just finished
-                        with the ougoing arm of the orbit, restart to
-                        plot in incoming arm.  Otherwise, we're done
-                        with this open orbit.  */
-
-                    if (o_parahyper &&
-                        (((llVecDist(rwhere, o_sunpos) / o_auscale) > o_aulimit) ||
-                         (o_csegment > o_nsegments))) {
-                        if (o_arm > 0) {
-//tawk("Done with open orbit.");
-                            llMessageLinked(LINK_THIS, LM_CP_RESUME, "", id);
-                        } else {
-                            o_arm++;
-                            o_jd = llList2Integer(mp_peri, 0);
-                            o_jdf = llList2Float(mp_peri, 1);
-                            o_csegment = 0;
-                            o_timestep = -o_timestep;
-                            llMessageLinked(LINK_THIS, LM_EP_CALC,
-                                llList2CSV([ 1 << o_body, o_jd, o_jdf, ephHandle ]), id);
+                    if (compJD(o_jd, o_enddate) < 0) {
+                        prev_o_jd = o_jd;
+                        o_jd = sumJD(o_jd, o_timestep);
+                        /*  If the time step would take us past the computed
+                            o_enddate, adjust it to end at that time.  */
+                        if (compJD(o_jd, o_enddate) > 0) {
+                            o_jd = o_enddate;
                         }
-                        return;
-                    }
-
-                    if (o_csegment <= o_nsegments) {
-                        o_jdf += o_timestep;
-                        integer jdfi = llFloor(o_jdf);
-                        o_jd += jdfi;
-                        o_jdf -= jdfi;
                         llMessageLinked(LINK_THIS, LM_EP_CALC,
-                            llList2CSV([ 1 << o_body, o_jd, o_jdf, ephHandle ]), id);
+                            llList2CSV([ o_bselect ] + o_jd + [ ephHandle ]), id);
                     } else {
-                        //  Done: close orbit by plotting to starting point
-//tawk("Close orbit " + (string) o_csegment + " from " + (string) o_olast + " to " + (string) o_ostart);
-                        float meanZ = ((o_olast.z - o_sunpos.z) +
-                            (o_ostart.z - o_sunpos.z)) / 2;
-                        vector segcol = <0, 0.75, 0>;
-                        if (meanZ < 0) {
-                            segcol = <0.75, 0, 0>;
-                        }
-                        flPlotLine(o_olast, o_ostart, segcol, 0.01);
+                        /*  We've reached the end of the orbit.  Resume script
+                            if suspended.  */
                         llMessageLinked(LINK_THIS, LM_CP_RESUME, "", id);
                     }
+
                 } else if (ephHandleEll == llList2Integer(l, -1)) {
                     /*  We're fitting an ellipse to the body's orbit
                         and have just received the body's periapse,
@@ -662,29 +768,50 @@
                         ephemeris calculator.  Now we're ready to
                         create the ellipse to display the orbit.  */
                     integer body = llList2Integer(l, 0);        // Body
-                    vector wXYZ = sphRect(llList2Float(l, 1),   // Peri L
-                                          llList2Float(l, 2),   // Peri B
-                                          llList2Float(l, 3));  // Peri R
-                    vector pXYZr = (wXYZ * o_auscale) + o_sunpos;
-                    wXYZ = sphRect(llList2Float(l, 4),          // Peri L
-                                          llList2Float(l, 5),   // Peri B
-                                          llList2Float(l, 6));  // Peri R
-                    vector aXYZr = (wXYZ * o_auscale) + o_sunpos;
-                    wXYZ = sphRect(llList2Float(l, 7),          // Peri L
-                                          llList2Float(l, 8),   // Peri B
-                                          llList2Float(l, 9));  // Peri R
-                    vector cXYZr = (wXYZ * o_auscale) + o_sunpos;
+                    vector pXYZr;           // Periapse co-ordinates
+                    vector aXYZr;           // Apoapse co-ordinates
+                    vector cXYZr;           // Co-vertex co-ordinates
+                    float m_a;              // Semi-major axis
+                    float m_e;              // Eccentricity
+                    if (!gc) {
+                        vector wXYZ = sphRect(llList2Float(l, 1),   // Peri L
+                                              llList2Float(l, 2),   // Peri B
+                                              llList2Float(l, 3));  // Peri R
+                        pXYZr = (wXYZ * o_auscale) + o_sunpos;
+                        wXYZ = sphRect(llList2Float(l, 4),          // Apo  L
+                                              llList2Float(l, 5),   // Apo  B
+                                              llList2Float(l, 6));  // Apo  R
+                        aXYZr = (wXYZ * o_auscale) + o_sunpos;
+                        wXYZ = sphRect(llList2Float(l, 7),          // Cvtx L
+                                              llList2Float(l, 8),   // Cvtx B
+                                              llList2Float(l, 9));  // Cvtx R
+                        cXYZr = (wXYZ * o_auscale) + o_sunpos;
+                        m_a = llList2Float(bodies, (body * bodiesE) + 2);
+                        m_e = llList2Float(bodies, (body * bodiesE) + 1);
+                    } else {
+                        pXYZr = (< llList2Float(l, 1),
+                                   llList2Float(l, 2),
+                                   llList2Float(l, 3) > * o_auscale) + o_sunpos;
+                        aXYZr = (< llList2Float(l, 4),
+                                   llList2Float(l, 5),
+                                   llList2Float(l, 6) > * o_auscale) + o_sunpos;
+                        cXYZr = (< llList2Float(l, 7),
+                                   llList2Float(l, 8),
+                                   llList2Float(l, 9) > * o_auscale) + o_sunpos;
+                        integer gx = ((body >> 16) - 1) * gc_sourceE; // Source list index
+                        m_a = llList2Float(gc_source, gx + 6);
+                        m_e = llList2Float(gc_source, gx + 5);
+                    }
                     string ellargs = llList2Json(JSON_ARRAY, [
                         body,                       // 0    Body number
                         "Planet " + (string) body,  // 1    Body name
                         pXYZr,                      // 2    Periapse location
                         aXYZr,                      // 3    Apoapse location
-                        llList2Float(bodies, (body * bodiesE) + 2), // 4    Semi-major axis
-                        llList2Float(bodies, (body * bodiesE) + 1), // 5    Eccentricity
+                        m_a,                        // 4    Semi-major axis
+                        m_e,                        // 5    Eccentricity
                         o_auscale,                  // 6    Astronomical unit scale factor
                         cXYZr                       // 7    Co-vertex location
                     ]);
-//tawk("createOrbitEllipse  " + ellargs);
                     createOrbitEllipse(ellargs);
                     llMessageLinked(LINK_THIS, LM_CP_RESUME, "", id);
                }
@@ -696,38 +823,33 @@
                     orbital period.  If it's undefined, we must resort
                     to "other means" when plotting the orbit.  */
                 list args = llJson2List(str);
-//tawk("Track: " + llList2CSV(args));
                 if (llList2Integer(args, 0)) {
                     integer bx = 10 * bodiesE;
-                    //  Plug the tracked body's period and name into the bodies list
+                    //  Plug the tracked body's name and elements into the bodies list
+                    float ecc = llList2Float(args, 7);
                     bodies = llListReplaceList(bodies,
-                        [ llList2Float(args, 2) ] +
-                        llList2List(bodies, bx + 1, bx + 2) +
-                        [ llList2String(args, 1) ],
-                        bx, bx + 3);
-                    //  "NaN" is a non-standard extension to JSON: allow for sloppiness
-                    if ((o_parahyper = llToLower(llList2String(args, 2)) == "nan")) {
-                        mp_peri = llList2List(args, 4, 5);
-//tawk("Orbits: Non-elliptical body being tracked: " + llList2CSV(mp_peri));
-                    }
+                        [ llList2Float(args, 2),        // Orbital period
+                          ecc,                          // Eccentricity
+                          llList2Float(args, 6),        // Semi-major axis
+                          llList2String(args, 1)        // Name
+                        ], bx, bx + 3);
+                    o_parahyper = ecc >= 1;
+                    mp_peri = llList2List(args, 4, 5);  // Perihelion date and fraction
                 } else {
                     //  Dropping tracking of current object
                     integer bx = 10 * bodiesE;
-                    bodies = llListReplaceList(bodies, [ -1.0 ], bx, bx);
+                    bodies = llListReplaceList(bodies,
+                        [ -1.0, 0, 0, "??MP??"  ], bx, bx + 3);
                 }
 
             //  LM_OR_ELLIPSE (602): Plot orbit ellipse
-            /*  At the present time, this does not handle minor
-                planets, which process this message directly in
-                the Minor Planets script.  */
 
             } else if (num == LM_OR_ELLIPSE) {
                 list l = llCSV2List(str);
                 integer body = llList2Integer(l, 0);
-                if (body != 10) {           // We don't handle minor planets here
-//tawk("Orbits: ellipse " + str);
-                    o_jd = llList2Integer(l, 1);                    // Julian day
-                    o_jdf = llList2Float(l, 2);                     // Julian day fraction
+//                if (body != 10) {                       // We don't handle minor planets here
+if (TRUE) {
+                    o_jd = llList2List(l, 1, 2);                    // Julian day and fraction
                     o_auscale = llList2Float(l, 3);                 // Astronomical unit scale factor
                     o_sunpos = (vector) llList2String(l, 4);        // Position of Sun
 
@@ -739,21 +861,49 @@
                     float eyear = llList2Integer(edate, 0) +
                                   ((llList2Integer(edate, 1) - 1) / 12.0) +
                                   ((llList2Integer(edate, 2) - 1) / 30.0);
-                    //  Get dates of perihelion and aphelion
-                    list dPeri = apsides(body, eyear, FALSE);
-                    list dApo = apsides(body, eyear, TRUE);
-                    float m_P = llList2Float(bodies, body * bodiesE);       // Orbital period
-                    float m_e = llList2Float(bodies, (body * bodiesE) + 1); // Eccentricity
-                    //  dCvtx = peri_date + (orbital_period *
-                    //                       (0.25 - eccentricity / (2 * Pi)))
-                    list dCvtx = sumJD(dPeri,
-                                        m_P * (0.25 - (m_e / TWO_PI)));
-                    list ephreq = [ 1 << body ] + dPeri + dApo + dCvtx + [ ephHandleEll ];
-//tawk("ephreq: " + llList2CSV(ephreq));
-                    llMessageLinked(LINK_THIS, LM_EP_CALC,
-                        llList2CSV(ephreq), id);
+
+                    integer gc = gc_source != [ ];          // Galactic Centre source ?
+                    integer gx = (body - 1) * gc_sourceE;   // Source list index
+                    integer bx = body * bodiesE;            // Solar system body index
+
+                    //  Get dates of periapse and apoapse
+                    list dPeri;             // Periapse date
+                    list dApo;              // Apoapse date
+                    list dCvtx;             // Co-vertex date
+                    float m_e;              // Eccentricity
+                    float o_period;         // Orbital period
+                    if (gc) {
+                        //  Galactic Centre source
+                        o_bselect = (body << 16);
+                        m_e = llList2Float(gc_source, gx + 5);              // Eccentricity
+                        dPeri = llList2List(gc_source, gx + 3, gx + 4);     // Periapse date
+                        if (m_e < 1) {      // Avoid math error is period is NaN for open trajectory
+                            o_period = llList2Float(gc_source, gx + 2) * 365.25;    // Orbital period
+                        }
+                        dApo = sumJD(dPeri, o_period / 2);                  // Apoapse date
+                    } else {
+                        //  Solar System body
+                        o_bselect = 1 << body;
+                        m_e = llList2Float(bodies, bx + 1);                 // Eccentricity
+                        if (m_e < 1) {      // Avoid math error for undefined period
+                            dPeri = apsides(body, eyear, FALSE);
+                            dApo = apsides(body, eyear, TRUE);
+                            o_period = llList2Float(bodies, bx);            // Orbital period
+                        }
+                    }
+                    //  If eccentricity is >= 1, we can't fit an ellipse
+                    if (m_e >= 1) {
+                        tawk("Cannot fit an ellipse.  Eccentricity is " + (string) m_e + ".");
+                        llMessageLinked(LINK_THIS, LM_CP_RESUME, "", id);
+                        return;
+                    }
+                    dCvtx = sumJD(dPeri,                                        // Compute co-vertex date
+                                  o_period * (0.25 - (m_e / TWO_PI)));
+                    list ephreq = [ o_bselect ] + dPeri + dApo + dCvtx + [ ephHandleEll ];
+                    llMessageLinked(LINK_THIS, LM_EP_CALC, llList2CSV(ephreq), id);
                 }
 
+/*
             //  LM_OR_ELEMENTS (603): Orbital elements for ellipse object
 
             } else if (num == LM_OR_ELEMENTS) {
@@ -769,6 +919,22 @@
                            (vector) llList2String(l, 1),
                            (vector) llList2String(l, 2),
                            llList2Float(l, 3));
+*/
+
+            //  LM_GC_SOURCES (752): Adding Galactic Centre source
+
+            } else if (num == LM_GC_SOURCES) {
+                /*  The main thing we care about is a source's
+                    orbital period and perhielion date.  If its
+                    eccentricity is >= 1, the orbital period is
+                    undefined (NaN) and we plot an open
+                    trajectory.  We also save the semi-major axis
+                    (if defined) in case we'll be fitting an
+                    ellipse.  */
+                list args = llJson2List(str);
+                if (llList2Integer(args, 1) > 0) {
+                    gc_source += llList2List(args, 1, gc_sourceE);
+                }
             }
         }
 
@@ -785,7 +951,6 @@
                     integer i;
                     integer n = llGetListLength(orbitParams);
 
-//tawk("ORBITAL request for mass " + (string) m_index);
                     for (i = 0; i < n; i += orbitParamsE) {
                         if (llList2Integer(orbitParams, i) == m_index) {
                             llRegionSayTo(id, massChannel,
@@ -796,7 +961,7 @@
                             return;
                         }
                     }
-tawk("Unable to find orbitParams for mass " + (string) m_index);
+//tawk("Unable to find orbitParams for mass " + (string) m_index);
                 }
             }
         }

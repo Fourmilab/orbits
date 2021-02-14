@@ -106,7 +106,7 @@
 
     integer LM_EP_CALC = 431;           // Calculate ephemeris
     integer LM_EP_RESULT = 432;         // Ephemeris calculation result
-    integer LM_EP_STAT = 433;           // Print memory status
+//  integer LM_EP_STAT = 433;           // Print memory status
 
     //  Auxiliary services messages
 
@@ -215,19 +215,29 @@
 
     string fuis(float a) {
         //  Detect the sign on zero.  It's ugly, but it gets you there
-        integer b = 0x80000000 & ~llSubStringIndex(llList2CSV([a]), "-");   // Sign
+        //  integer b = 0x80000000 & ~llSubStringIndex(llList2CSV([a]), "-");   // Sign
+        /*  Test for negative number, ignoring the difference between
+            +0 and -0.  While this does not preserve floating point
+            numbers bit-for-bit, it doesn't make any difference in
+            our calculations and is almost three times faster than
+            the original code above.  */
+        integer b = 0;
+        if (a < 0) {
+            b = 0x80000000;
+        }
 
-        if ((a)) {      // Is it greater than or less than zero ?
+        if (a) {        // Is it greater than or less than zero ?
             //  Denormalized range check and last stride of normalized range
             if ((a = llFabs(a)) < 2.3509887016445750159374730744445e-38) {
-                b = b | (integer)(a / 1.4012984643248170709237295832899e-45);   // Math overlaps; saves CPU time
-            } else if (a > 3.4028234663852885981170418348452e+38) { // Round up to infinity
-                b = b | 0x7F800000;                                 // Positive or negative infinity
+                b = b | (integer) (a / 1.4012984643248170709237295832899e-45);   // Math overlaps; saves CPU time
+            //  We never need to transmit infinity, so save the time testing for it.
+            // } else if (a > 3.4028234663852885981170418348452e+38) { // Round up to infinity
+            //     b = b | 0x7F800000;                                 // Positive or negative infinity
             } else if (a > 1.4012984643248170709237295832899e-45) { // It should at this point, except if it's NaN
                 integer c = ~-llFloor(llLog(a) * 1.4426950408889634073599246810019);
                 //  Extremes will error towards extremes. The following corrects it
-                b = b | (0x7FFFFF & (integer)(a * (0x1000000 >> c))) |
-                        ((126 + (c = ((integer)a - (3 <= (a *= llPow(2, -c))))) + c) * 0x800000);
+                b = b | (0x7FFFFF & (integer) (a * (0x1000000 >> c))) |
+                        ((126 + (c = ((integer) a - (3 <= (a *= llPow(2, -c))))) + c) * 0x800000);
                 //  The previous requires a lot of unwinding to understand
             } else {
                 //  NaN time!  We have no way to tell NaNs apart so pick one arbitrarily
@@ -1233,7 +1243,8 @@ updateEphemeris((1 << 10) - 2,
             //  LM_GC_SOURCES (752): Modeling galactic centre
 
             } else if (num == LM_GC_SOURCES) {
-                gc_sources = (integer) str;
+                list l = llJson2List(str);
+                gc_sources = llList2Integer(l, 0);  // Number of sources
                 ev_updating = FALSE;
             }
         }

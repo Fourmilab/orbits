@@ -1,8 +1,8 @@
     /*
 
-                        Fourmilab Solar System
+                          Fourmilab Orbits
 
-                             Minor Planets
+                            Minor Planets
 
         This script handles specification of the orbits of minor
         planets (asteroids and comets) and computation of their
@@ -33,10 +33,10 @@
 
     integer LM_MP_TRACK = 571;      // Notify tracking minor planet
 
-    //  Orbit messages
-
-    integer LM_OR_ELLIPSE = 602;        // Fit ellipse to body
-    integer LM_OR_ELEMENTS = 603;       // Orbital elements for ellipse object
+//    //  Orbit messages
+//
+//    integer LM_OR_ELLIPSE = 602;        // Fit ellipse to body
+//    integer LM_OR_ELEMENTS = 603;       // Orbital elements for ellipse object
 
     //  tawk  --  Send a message to the interacting user in chat
 
@@ -709,7 +709,13 @@
         string command = llList2String(args, 0);    // The command
 //        string sparam = llList2String(args, 1);     // First argument, for convenience
 
-        //  Asteroid                Set asteroid or comet orbital elements
+        //  Asteroid                Set asteroid orbital elements
+        //  Comet                   Set comet orbital elements
+
+        /*  Elements for both kinds of bodies are specified in exactly
+            the same fashion and variety of forms.  The only difference
+            is which model is used to represent the body in the
+            simulation.  */
 
         integer isAst;
         if ((isAst = abbrP(command, "as")) || abbrP(command, "co")) {
@@ -730,12 +736,14 @@
                     //  Inform simulation we're tracking an object
                     llMessageLinked(LINK_THIS, LM_MP_TRACK,
                         llList2Json(JSON_ARRAY,
-                            [ TRUE,
-                              llList2String(s_elem, 0), // Name
-                              llList2Float(s_elem, 15), // Orbital period (note NaN m_e >= 1)
-                              isAst,                    // Is this asteroid (not comet) ?
-                              llList2Integer(s_elem, 11), // Time of perihelion day...
-                              llList2Float(s_elem, 12)    // ...and fraction
+                            [ TRUE,                     // 0    Status
+                              llList2String(s_elem, 0), // 1    Name
+                              llList2Float(s_elem, 15), // 2    Orbital period (note NaN m_e >= 1)
+                              isAst,                    // 3    Is this asteroid (not comet) ?
+                              llList2Integer(s_elem, 11), // 4  Julian day of perihelion...
+                              llList2Float(s_elem, 12),   // 5  ...and fraction
+                              llList2Float(s_elem, 3),  // 6    Semi-major axis (NaN m_e >= 1)
+                              llList2Float(s_elem, 4)   // 7    Eccentricity
                             ]), id);
                 }
             }
@@ -771,6 +779,7 @@
         return TRUE;
     }
 
+/*
     //  sphRect  --  Convert spherical (L, B, R) co-ordinates to rectangular
 
     vector sphRect(float l, float b, float r) {
@@ -793,6 +802,7 @@
         ajdf -= ajdfi;
         return [ ajd, ajdf ];
     }
+*/
 
     integer BODY = 10;                  // Our body number
 
@@ -876,13 +886,14 @@
                     PRIM_TEXT, legend, <0, 1, 0>, 1
                 ]);
 
+/*
             //  LM_OR_ELLIPSE (602): Plot orbit ellipse
 
-            } else if (num == LM_OR_ELLIPSE) {
+            } else if (num == 999999 + LM_OR_ELLIPSE) {
                 list l = llCSV2List(str);
                 if (llList2Integer(l, 0) == BODY) {
                     /*  We can only display an ellipse if an object is being
-                        tracked and its eccentricity is less than 1.  */
+                        tracked and its eccentricity is less than 1.  *_/
                     if ((s_elem != [ ]) &&
                         (llList2Float(s_elem, 4) < 1)) {
                         float o_auscale = llList2Float(l, 3);           // Astronomical unit scale factor
@@ -926,7 +937,7 @@
                         /*  Compose and send a LM_OR_ELEMENTS message to the
                             Orbits module with "just the facts" needed for it
                             to configure an "Orbit ellipse" object to represent
-                            the orbit.  */
+                            the orbit.  *_/
 
                         llMessageLinked(LINK_THIS, LM_OR_ELEMENTS,
                             llList2Json(JSON_ARRAY, [
@@ -941,6 +952,7 @@
                             ]), whoDat);
                     }
                 }
+*/
             }
         }
     }

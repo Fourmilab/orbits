@@ -135,19 +135,29 @@ float collideDist = 0.0001;             // Criterion for declaring collision
 
     string fuis(float a) {
         //  Detect the sign on zero.  It's ugly, but it gets you there
-        integer b = 0x80000000 & ~llSubStringIndex(llList2CSV([a]), "-");   // Sign
+        //  integer b = 0x80000000 & ~llSubStringIndex(llList2CSV([a]), "-");   // Sign
+        /*  Test for negative number, ignoring the difference between
+            +0 and -0.  While this does not preserve floating point
+            numbers bit-for-bit, it doesn't make any difference in
+            our calculations and is almost three times faster than
+            the original code above.  */
+        integer b = 0;
+        if (a < 0) {
+            b = 0x80000000;
+        }
 
-        if ((a)) {      // Is it greater than or less than zero ?
+        if (a) {        // Is it greater than or less than zero ?
             //  Denormalized range check and last stride of normalized range
             if ((a = llFabs(a)) < 2.3509887016445750159374730744445e-38) {
-                b = b | (integer)(a / 1.4012984643248170709237295832899e-45);   // Math overlaps; saves CPU time
-            } else if (a > 3.4028234663852885981170418348452e+38) { // Round up to infinity
-                b = b | 0x7F800000;                                 // Positive or negative infinity
+                b = b | (integer) (a / 1.4012984643248170709237295832899e-45);   // Math overlaps; saves CPU time
+            //  We never need to transmit infinity, so save the time testing for it.
+            // } else if (a > 3.4028234663852885981170418348452e+38) { // Round up to infinity
+            //     b = b | 0x7F800000;                                 // Positive or negative infinity
             } else if (a > 1.4012984643248170709237295832899e-45) { // It should at this point, except if it's NaN
                 integer c = ~-llFloor(llLog(a) * 1.4426950408889634073599246810019);
                 //  Extremes will error towards extremes. The following corrects it
-                b = b | (0x7FFFFF & (integer)(a * (0x1000000 >> c))) |
-                        ((126 + (c = ((integer)a - (3 <= (a *= llPow(2, -c))))) + c) * 0x800000);
+                b = b | (0x7FFFFF & (integer) (a * (0x1000000 >> c))) |
+                        ((126 + (c = ((integer) a - (3 <= (a *= llPow(2, -c))))) + c) * 0x800000);
                 //  The previous requires a lot of unwinding to understand
             } else {
                 //  NaN time!  We have no way to tell NaNs apart so pick one arbitrarily
@@ -156,6 +166,20 @@ float collideDist = 0.0001;             // Criterion for declaring collision
         }
 
         return llGetSubString(llIntegerToBase64(b), 0, 5);
+    }
+
+    /*  siuf  --  Base64 encoded integer to float
+                  Designed and implemented by Strife Onizuka:
+                    http://wiki.secondlife.com/wiki/User:Strife_Onizuka/Float_Functions  */
+
+    float siuf(string b) {
+        integer a = llBase64ToInteger(b);
+        if (0x7F800000 & ~a) {
+            return llPow(2, (a | !a) + 0xffffff6a) *
+                      (((!!(a = (0xff & (a >> 23)))) * 0x800000) |
+                       (a & 0x7fffff)) * (1 | (a >> 31));
+        }
+        return (!(a & 0x7FFFFF)) * (float) "inf" * ((a >> 31) | 1);
     }
 
     /*  fixArgs  --  Transform command arguments into canonical form.
@@ -605,16 +629,16 @@ ldeltat = deltat;
                     or wish to pass on to masses we've created.  */
                 paths = llList2Integer(msg, 2);
                 s_trace = llList2Integer(msg, 3);
-                s_kaboom = (float) llList2String(msg, 4);
-                s_auscale = (float) llList2String(msg, 5);
-                s_radscale = (float) llList2String(msg, 6);
+                s_kaboom = siuf(llList2String(msg, 4));
+                s_auscale = siuf(llList2String(msg, 5));
+                s_radscale = siuf(llList2String(msg, 6));
                 s_trails = llList2Integer(msg, 7);
-                s_pwidth = (float) llList2String(msg, 8);
-                s_mindist = (float) llList2String(msg, 9);
-                s_deltat = (float) llList2String(msg, 10);
-                s_simRate = (float) llList2String(msg, 15);
-                s_stepRate = (float) llList2String(msg, 16);
-                s_zoffset = (float) llList2String(msg, 17);
+                s_pwidth = siuf(llList2String(msg, 8));
+                s_mindist = siuf(llList2String(msg, 9));
+                s_deltat = siuf(llList2String(msg, 10));
+                s_simRate = siuf(llList2String(msg, 15));
+                s_stepRate = siuf(llList2String(msg, 16));
+                s_zoffset = siuf(llList2String(msg, 17));
                 s_legend = llList2Integer(msg, 18);
                 simEpoch = llList2List(msg, 19, 20);
                 s_labels = llList2Integer(msg, 21);
