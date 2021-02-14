@@ -57,8 +57,6 @@
     //  Parameters for current orbit plotting task
 
     integer o_body;                     // Body
-//    integer o_jd;                       // Julian day
-//    float o_jdf;                        // Julian day fraction
     list o_jd;                          // Julian day and fraction
     float o_auscale;                    // Astronomical unit scale factor
     integer o_nsegments;                // Number of segments to plot
@@ -102,9 +100,6 @@
 
     integer LM_OR_PLOT = 601;           // Plot orbit for body
     integer LM_OR_ELLIPSE = 602;        // Fit ellipse to body
-//    integer LM_OR_ELEMENTS = 603;       // Orbital elements for ellipse object
-//    integer LM_OR_STAT = 604;           // Print status
-//    integer LM_OR_DRAW = 605;           // Draw a line of an orbit
 
     //  tawk  --  Send a message to the interacting user in chat
 
@@ -376,7 +371,6 @@
         float m_e = llList2Float(el, 5);
         float s_auscale = llList2Float(el, 6);
         vector m_covertex = (vector) llList2String(el, 7);
-//tawk("createOrbitEllipse " + llList2CSV(el));
 
         //  Parameters derived from elements
 
@@ -414,7 +408,6 @@
             There may be a far simpler one- or two-liner which
             does the same thing, but so far it has eluded me.  */
 
-//        vector c_rup = llRot2Up(c_rotation);            // Normal vector after apsides alignment
         vector c_left = llRot2Left(c_rotation);         // Local Y axis after apsides alignment
 //markerBall(c_centre + (c_left * (c_b * s_auscale)), 0.1, <0.5, 0.5, 0.5>);
         // Vector from centre to covertex on orbit
@@ -425,7 +418,6 @@
         float dmdot = llVecNorm(c_left % v1) * llVecNorm(m_periapse - c_centre);
         //  Angle between Y axis and covertex: detects ellipse inversion
         float ladot = llAcos(v1 * c_left);
-//tawk("v1 " + (string) v1 + " plxang " + (string) plxang + " dmdot " + (string) dmdot + " ladot " + (string) (ladot * RAD_TO_DEG));
         if (ladot > PI_BY_TWO) {
             dmdot = -dmdot;
         }
@@ -541,7 +533,6 @@
                 if (p > 0) {
                     body = (string) (((p - 1) / gc_sourceE) + 1);
                 }
-//tawk("GC source (" + llList2String(args, 1) + ") = " + body);
             }
 
             integer segments = 96;
@@ -579,7 +570,6 @@
                     "  Used: " + (string) mUsed + " (" +
                     (string) ((integer) llRound((mUsed * 100.0) / (mUsed + mFree))) + "%)";
             tawk(s);
-//tawk("  gc_source:\n    " + llList2CSV(gc_source));
         }
         return TRUE;
     }
@@ -641,7 +631,6 @@
                     } else {
                         mp_peri = llList2List(gc_source, gx + 3, gx + 4);
                     }
-//tawk("Orbit: " + llList2CSV(llList2List(gc_source, gx, gx + 5)));
                 } else {
                     //  Solar System body
                     o_bselect = 1 << o_body;
@@ -779,16 +768,19 @@
                                               llList2Float(l, 3));  // Peri R
                         pXYZr = (wXYZ * o_auscale) + o_sunpos;
                         wXYZ = sphRect(llList2Float(l, 4),          // Apo  L
-                                              llList2Float(l, 5),   // Apo  B
-                                              llList2Float(l, 6));  // Apo  R
+                                       llList2Float(l, 5),          // Apo  B
+                                       llList2Float(l, 6));         // Apo  R
                         aXYZr = (wXYZ * o_auscale) + o_sunpos;
                         wXYZ = sphRect(llList2Float(l, 7),          // Cvtx L
-                                              llList2Float(l, 8),   // Cvtx B
-                                              llList2Float(l, 9));  // Cvtx R
+                                       llList2Float(l, 8),          // Cvtx B
+                                       llList2Float(l, 9));         // Cvtx R
                         cXYZr = (wXYZ * o_auscale) + o_sunpos;
                         m_a = llList2Float(bodies, (body * bodiesE) + 2);
                         m_e = llList2Float(bodies, (body * bodiesE) + 1);
                     } else {
+                        /*  The Galactic Centre module returns galactic
+                            rectangular co-ordinates, so they may be used
+                            directly without transformation from spherical.  */
                         pXYZr = (< llList2Float(l, 1),
                                    llList2Float(l, 2),
                                    llList2Float(l, 3) > * o_auscale) + o_sunpos;
@@ -847,79 +839,58 @@
             } else if (num == LM_OR_ELLIPSE) {
                 list l = llCSV2List(str);
                 integer body = llList2Integer(l, 0);
-//                if (body != 10) {                       // We don't handle minor planets here
-if (TRUE) {
-                    o_jd = llList2List(l, 1, 2);                    // Julian day and fraction
-                    o_auscale = llList2Float(l, 3);                 // Astronomical unit scale factor
-                    o_sunpos = (vector) llList2String(l, 4);        // Position of Sun
+                o_jd = llList2List(l, 1, 2);                    // Julian day and fraction
+                o_auscale = llList2Float(l, 3);                 // Astronomical unit scale factor
+                o_sunpos = (vector) llList2String(l, 4);        // Position of Sun
 
-                    list edate = jyearl(llList2List(l, 1, 2));
-                    /*  Compute approximate year and fraction from
-                        month and day.  This is a rough approximation,
-                        so there's no need to go back and do it with
-                        full Julian day arithmetic.  */
-                    float eyear = llList2Integer(edate, 0) +
-                                  ((llList2Integer(edate, 1) - 1) / 12.0) +
-                                  ((llList2Integer(edate, 2) - 1) / 30.0);
+                list edate = jyearl(llList2List(l, 1, 2));
+                /*  Compute approximate year and fraction from
+                    month and day.  This is a rough approximation,
+                    so there's no need to go back and do it with
+                    full Julian day arithmetic.  */
+                float eyear = llList2Integer(edate, 0) +
+                              ((llList2Integer(edate, 1) - 1) / 12.0) +
+                              ((llList2Integer(edate, 2) - 1) / 30.0);
 
-                    integer gc = gc_source != [ ];          // Galactic Centre source ?
-                    integer gx = (body - 1) * gc_sourceE;   // Source list index
-                    integer bx = body * bodiesE;            // Solar system body index
+                integer gc = gc_source != [ ];          // Galactic Centre source ?
+                integer gx = (body - 1) * gc_sourceE;   // Source list index
+                integer bx = body * bodiesE;            // Solar system body index
 
-                    //  Get dates of periapse and apoapse
-                    list dPeri;             // Periapse date
-                    list dApo;              // Apoapse date
-                    list dCvtx;             // Co-vertex date
-                    float m_e;              // Eccentricity
-                    float o_period;         // Orbital period
-                    if (gc) {
-                        //  Galactic Centre source
-                        o_bselect = (body << 16);
-                        m_e = llList2Float(gc_source, gx + 5);              // Eccentricity
-                        dPeri = llList2List(gc_source, gx + 3, gx + 4);     // Periapse date
-                        if (m_e < 1) {      // Avoid math error is period is NaN for open trajectory
-                            o_period = llList2Float(gc_source, gx + 2) * 365.25;    // Orbital period
-                        }
-                        dApo = sumJD(dPeri, o_period / 2);                  // Apoapse date
-                    } else {
-                        //  Solar System body
-                        o_bselect = 1 << body;
-                        m_e = llList2Float(bodies, bx + 1);                 // Eccentricity
-                        if (m_e < 1) {      // Avoid math error for undefined period
-                            dPeri = apsides(body, eyear, FALSE);
-                            dApo = apsides(body, eyear, TRUE);
-                            o_period = llList2Float(bodies, bx);            // Orbital period
-                        }
+                //  Get dates of periapse and apoapse
+                list dPeri;             // Periapse date
+                list dApo;              // Apoapse date
+                list dCvtx;             // Co-vertex date
+                float m_e;              // Eccentricity
+                float o_period;         // Orbital period
+                if (gc) {
+                    //  Galactic Centre source
+                    o_bselect = (body << 16);
+                    m_e = llList2Float(gc_source, gx + 5);              // Eccentricity
+                    dPeri = llList2List(gc_source, gx + 3, gx + 4);     // Periapse date
+                    if (m_e < 1) {      // Avoid math error is period is NaN for open trajectory
+                        o_period = llList2Float(gc_source, gx + 2) * 365.25;    // Orbital period
                     }
-                    //  If eccentricity is >= 1, we can't fit an ellipse
-                    if (m_e >= 1) {
-                        tawk("Cannot fit an ellipse.  Eccentricity is " + (string) m_e + ".");
-                        llMessageLinked(LINK_THIS, LM_CP_RESUME, "", id);
-                        return;
+                    dApo = sumJD(dPeri, o_period / 2);                  // Apoapse date
+                } else {
+                    //  Solar System body
+                    o_bselect = 1 << body;
+                    m_e = llList2Float(bodies, bx + 1);                 // Eccentricity
+                    if (m_e < 1) {      // Avoid math error for undefined period
+                        dPeri = apsides(body, eyear, FALSE);
+                        dApo = apsides(body, eyear, TRUE);
+                        o_period = llList2Float(bodies, bx);            // Orbital period
                     }
-                    dCvtx = sumJD(dPeri,                                        // Compute co-vertex date
-                                  o_period * (0.25 - (m_e / TWO_PI)));
-                    list ephreq = [ o_bselect ] + dPeri + dApo + dCvtx + [ ephHandleEll ];
-                    llMessageLinked(LINK_THIS, LM_EP_CALC, llList2CSV(ephreq), id);
                 }
-
-/*
-            //  LM_OR_ELEMENTS (603): Orbital elements for ellipse object
-
-            } else if (num == LM_OR_ELEMENTS) {
-                createOrbitEllipse(str);
-
-            //  LM_OR_DRAW (605): Draw a line of an orbit
-
-            } else if (num == LM_OR_DRAW) {
-                list l = llCSV2List(str);
-
-                flPlotPerm = llList2Integer(l, 4);
-                flPlotLine((vector) llList2String(l, 0),
-                           (vector) llList2String(l, 1),
-                           (vector) llList2String(l, 2),
-                           llList2Float(l, 3));
-*/
+                //  If eccentricity is >= 1, we can't fit an ellipse
+                if (m_e >= 1) {
+                    tawk("Cannot fit an ellipse.  Eccentricity is " + (string) m_e + ".");
+                    llMessageLinked(LINK_THIS, LM_CP_RESUME, "", id);
+                    return;
+                }
+                dCvtx = sumJD(dPeri,                                        // Compute co-vertex date
+                              o_period * (0.25 - (m_e / TWO_PI)));
+                list ephreq = [ o_bselect ] + dPeri + dApo + dCvtx + [ ephHandleEll ];
+                llMessageLinked(LINK_THIS, LM_EP_CALC, llList2CSV(ephreq), id);
 
             //  LM_GC_SOURCES (752): Adding Galactic Centre source
 

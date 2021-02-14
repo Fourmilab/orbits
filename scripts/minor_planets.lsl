@@ -33,11 +33,6 @@
 
     integer LM_MP_TRACK = 571;      // Notify tracking minor planet
 
-//    //  Orbit messages
-//
-//    integer LM_OR_ELLIPSE = 602;        // Fit ellipse to body
-//    integer LM_OR_ELEMENTS = 603;       // Orbital elements for ellipse object
-
     //  tawk  --  Send a message to the interacting user in chat
 
     tawk(string msg) {
@@ -249,7 +244,6 @@
         float w = llList2Float(elements, 6) * DEG_TO_RAD;
         float n = llList2Float(elements, 7) * DEG_TO_RAD;
         float i = llList2Float(elements, 5) * DEG_TO_RAD;
-//tawk("ComputeOrbit  e " + (string) (RAD_TO_DEG * e) + "  w " + (string) (RAD_TO_DEG * w) + "  n " + (string) (RAD_TO_DEG * n) + "  i " + (string) (RAD_TO_DEG * i));
 
         float w1 = llSin(w);
         float w2 = llCos(w);
@@ -337,7 +331,6 @@
             if ((i + 1) < argn) {
                 val = llList2Float(args, i + 1);
             }
-//tawk("arg " + (string) i + "  var " + var + "  val " + (string) val);
             if (!spec(val)) {
                 tawk("Bad value for var " + var +
                     " args[" + (string) (i + 1) + "]: " + (string) val +
@@ -464,7 +457,6 @@
 
     list posMP(integer jd, float jdf) {
         vector pos = computeOrbit(s_elem, [ jd, jdf ]);
-//tawk("Heliocentric position: " + (string) pos + "  rv " + (string) llVecMag(pos));
         float x = pos.x;
         float y = pos.y;
         float z = pos.z;
@@ -476,9 +468,6 @@
                                 (llTan(hdec) * llSin(obelix)), llCos(hra));
         float hlat = llAsin(llSin(hdec) * llCos(obelix) -
                                 (llCos(hdec) * llSin(obelix) * llSin(hra)));
-//tawk("pos " + (string) pos + " obelix " + (string) obelix + " hra " + (string) hra +
-//    " hdec " + (string) hdec + " hrv " + (string) hrv + " hlong " + (string) hlong +
-//    " hlat " + (string) hlat);
         return [ hlong, hlat, hrv ];
     }
 
@@ -707,7 +696,6 @@
         args = llParseString2List(lmessage, [ " " ], []);   // Command and arguments
         integer argn = llGetListLength(args);       // Number of arguments
         string command = llList2String(args, 0);    // The command
-//        string sparam = llList2String(args, 1);     // First argument, for convenience
 
         //  Asteroid                Set asteroid orbital elements
         //  Comet                   Set comet orbital elements
@@ -778,31 +766,6 @@
         }
         return TRUE;
     }
-
-/*
-    //  sphRect  --  Convert spherical (L, B, R) co-ordinates to rectangular
-
-    vector sphRect(float l, float b, float r) {
-        return < r * llCos(b) * llCos(l),
-                 r * llCos(b) * llSin(l),
-                 r * llSin(b) >;
-    }
-
-    //  sumJD  --  Compute sum of Julian date list with float duration
-
-    list sumJD(list jd, float dur) {
-        integer ajd = llList2Integer(jd, 0);    // Full days...
-        float ajdf = llList2Float(jd, 1);       // ...and day fraction
-        integer duri = llFloor(dur);
-        dur -= duri;
-        ajd += duri;
-        ajdf += dur;
-        integer ajdfi = llFloor(ajdf);
-        ajd += ajdfi;
-        ajdf -= ajdfi;
-        return [ ajd, ajdf ];
-    }
-*/
 
     integer BODY = 10;                  // Our body number
 
@@ -885,74 +848,6 @@
                 llSetLinkPrimitiveParamsFast(LINK_THIS, [
                     PRIM_TEXT, legend, <0, 1, 0>, 1
                 ]);
-
-/*
-            //  LM_OR_ELLIPSE (602): Plot orbit ellipse
-
-            } else if (num == 999999 + LM_OR_ELLIPSE) {
-                list l = llCSV2List(str);
-                if (llList2Integer(l, 0) == BODY) {
-                    /*  We can only display an ellipse if an object is being
-                        tracked and its eccentricity is less than 1.  *_/
-                    if ((s_elem != [ ]) &&
-                        (llList2Float(s_elem, 4) < 1)) {
-                        float o_auscale = llList2Float(l, 3);           // Astronomical unit scale factor
-                        vector o_sunpos = (vector) llList2String(l, 4); // Position of Sun
-
-                        //  Compute the location of the periapse
-
-                        list periLBR =  posMP(llList2Integer(s_elem, 11),
-                                              llList2Float(s_elem, 12));
-                        vector wXYZ = sphRect(llList2Float(periLBR, 0),
-                                              llList2Float(periLBR, 1),
-                                              llList2Float(periLBR, 2));
-                        vector pXYZr = (wXYZ * o_auscale) + o_sunpos;
-//tawk("Periapse location: " + (string) pXYZr);
-
-                        //  Compute the location of the apoapse
-
-                        list pjd = sumJD(llList2List(s_elem, 11, 12),
-                                         llList2Float(s_elem, 15) / 2);
-                        list apoLBR = posMP(llList2Integer(pjd, 0),
-                                            llList2Float(pjd, 1));
-                        wXYZ = sphRect(llList2Float(apoLBR, 0),
-                                       llList2Float(apoLBR, 1),
-                                       llList2Float(apoLBR, 2));
-                        vector aXYZr = (wXYZ * o_auscale) + o_sunpos;
-//tawk("Apoapse location: " + (string) aXYZr);
-
-                        //  Compute the location of a co-vertex of the ellipse
-
-                        list cjd = sumJD(llList2List(s_elem, 11, 12),
-                                            llList2Float(s_elem, 15) *
-                                            (0.25 - (llList2Float(s_elem, 4) / TWO_PI)));
-                        list cvxLBR = posMP(llList2Integer(cjd, 0),
-                                            llList2Float(cjd, 1));
-                        wXYZ = sphRect(llList2Float(cvxLBR, 0),
-                                       llList2Float(cvxLBR, 1),
-                                       llList2Float(cvxLBR, 2));
-                        vector cXYZr = (wXYZ * o_auscale) + o_sunpos;
-//tawk("Co-vertex location: " + (string) aXYZr);
-
-                        /*  Compose and send a LM_OR_ELEMENTS message to the
-                            Orbits module with "just the facts" needed for it
-                            to configure an "Orbit ellipse" object to represent
-                            the orbit.  *_/
-
-                        llMessageLinked(LINK_THIS, LM_OR_ELEMENTS,
-                            llList2Json(JSON_ARRAY, [
-                                BODY,                       // 0    Body number
-                                llList2String(s_elem, 0),   // 1    Body name
-                                pXYZr,                      // 2    Periapse location
-                                aXYZr,                      // 3    Apoapse location
-                                llList2Float(s_elem, 3),    // 4    Semi-major axis
-                                llList2Float(s_elem, 4),    // 5    Eccentricity
-                                o_auscale,                  // 6    Astronomical unit scale factor
-                                cXYZr                       // 7    Co-vertex location
-                            ]), whoDat);
-                    }
-                }
-*/
             }
         }
     }

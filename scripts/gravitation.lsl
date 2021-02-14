@@ -183,7 +183,6 @@
         }
         //  Inform other scripts in this object of new settings
         llMessageLinked(LINK_THIS, LM_AS_SETTINGS, msg, whoDat);
-//tawk("Sent settings " + msg);
     }
 
     //  updateLegend  --  Update legend above deployer
@@ -363,7 +362,6 @@
 
 float ephCalcStart;
     updateEphemeris(integer bodies, integer jd, float jdf) {
-//tawk("updateEphemeris for " + (string) jd +  " + "  + (string) jdf);
 ephCalcStart = llGetTime();
         ephRequests = bodies;
         ephReplies = 0;
@@ -480,7 +478,6 @@ ephCalcStart = llGetTime();
             interval *= 100;
         }
 
-//tawk("Pinterval (" + intv + ") = " + (string) interval);
         return interval;
     }
 
@@ -1217,11 +1214,6 @@ updateEphemeris((1 << 10) - 2,
 //tawk("Now tracking minor planet (" + m_name + ")");
                     planetsPresent = planetsPresent | (1 << 10);
                     solarSystem = llListReplaceList(solarSystem, [ m_name ], 10, 10);
-/*
-                    if (trace) {
-                        tawk("Deploying " + str + " at " + (string) where);
-                    }
-*/
                     string bname = "Comet";
                     if (llList2Integer(args, 3)) {
                         bname = "Asteroid";

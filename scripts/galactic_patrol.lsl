@@ -47,7 +47,6 @@
 
     //  Command processor messages
 
-//    integer LM_CP_RESUME = 225;         // Resume script after command
     integer LM_CP_REMOVE = 226;         // Remove simulation objects
 
     //  Ephemeris calculation messages
@@ -58,13 +57,6 @@
     //  Auxiliary services messages
 
     integer LM_AS_SETTINGS = 542;       // Update settings
-
-    //  Orbit messages
-
-//    integer LM_OR_PLOT = 601;           // Plot orbit for body
-//    integer LM_OR_ELLIPSE = 602;        // Fit ellipse to body
-//    integer LM_OR_ELEMENTS = 603;       // Orbital elements for ellipse object
-//    integer LM_OR_DRAW = 605;           // Draw a line of an orbit
 
     //  Galactic patrol messages
 
@@ -323,43 +315,11 @@
     //  posGS  --  Compute position of currently-tracked source
 
     list posGS(integer src, integer jd, float jdf) {
-src--;
-s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
+        src--;
+        s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
         vector pos = computeOrbit(s_elem, [ jd, jdf ]);
         return [ pos.x, pos.y, pos.z ];
     }
-
-/*
-    //  sumJD  --  Compute sum of Julian date list with float duration
-
-    list sumJD(list jd, float dur) {
-        integer ajd = llList2Integer(jd, 0);    // Full days...
-        float ajdf = llList2Float(jd, 1);       // ...and day fraction
-        integer duri = llFloor(dur);
-        dur -= duri;
-        ajd += duri;
-        ajdf += dur;
-        integer ajdfi = llFloor(ajdf);
-        ajd += ajdfi;
-        ajdf -= ajdfi;
-        return [ ajd, ajdf ];
-    }
-
-    //  plotSeg  --  Plot a segment of an orbit
-
-    integer flPlotPerm;                 // Plot with permanent objects ?
-
-    plotSeg(vector from, vector to, float sunposZ) {
-        float meanZ = ((from.z - sunposZ) +
-            (to.z - sunposZ)) / 2;
-        vector segcol = <0, 0.75, 0>;
-        if (meanZ < 0) {
-            segcol = <0.75, 0, 0>;
-        }
-        llMessageLinked(LINK_THIS, LM_OR_DRAW,
-            llList2CSV([ from, to, segcol, 0.01, flPlotPerm ]), whoDat);
-    }
-*/
 
     //  elKaboom  --  Determine if a source has moved out of range or region
 
@@ -444,16 +404,12 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                     integer i = body_k * s_sourcesE;
                     if ((i >= 0) && (i < llGetListLength(s_sources))) {
                         s_elem = llList2List(s_sources, i, i + (s_sourcesE - 1));
-//tawk("EP_CALC args " + llList2CSV(args) + " body_k " + (string) body_k + " i " + (string) i +
-// " " + llList2CSV(s_elem));
                         list eph = [ ];
 
                         for (i = 1; (i + 1) < argn; i += 2) {
                             eph += posGS(body_k + 1, llList2Integer(args, i),
                                                      llList2Float(args, i + 1));
                         }
-//tawk("EP_CALC " + llList2CSV(s_elem) + "\n  " + llList2CSV(eph) + "\n  args " + llList2CSV(args) +
-//    " body_k " + (string) body_k);
                         integer handle = llList2Integer(args, i);
                         llMessageLinked(LINK_THIS, LM_EP_RESULT,
                             (string) body + "," +
@@ -474,175 +430,6 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                 s_legend = llList2Integer(msg, 18);
                 simEpoch = llList2List(msg, 19, 20);
                 s_labels = llList2Integer(msg, 21);
-
-/*
-            //  LM_OR_PLOT (601): Plot orbit
-
-            } else if (num == 999999 + LM_OR_PLOT) {
-                if (s_sources != [ ]) {
-                    list l = llCSV2List(str);
-                    integer i;
-                    integer k = 1;
-                    integer n = llGetListLength(s_sources);
-                    string body = llList2String(l, 0);
-                    s_elem = [ ];
-                    for (i = 0; i < n; i += s_sourcesE, k++) {
-                        if (llList2String(s_sources, i) == body) {
-                            s_elem = llList2List(s_sources, i, i + (s_sourcesE - 1));
-                            jump foundOrb;
-                        }
-                    }
-                    @foundOrb;
-
-                    if (s_elem != [ ]) {
-                        integer o_parahyper = llList2Float(s_elem, 4) >= 1;
-                        integer o_jd;
-                        float o_jdf;
-                        integer o_arm;
-                        if (!o_parahyper) {
-                            o_jd = llList2Integer(l, 1);        // Julian day
-                            o_jdf = llList2Float(l, 2);         // Julian day fraction
-                        } else {
-                            /*  If the orbit is parabolic or hyperbolic,
-                                commence plotting at the periapse.  *_/
-                            o_jd = llList2Integer(s_elem, 11);
-                            o_jdf = llList2Float(s_elem, 12);
-                            o_arm = 0;                              // Start on positive time arm
-                        }
-                        float o_auscale = llList2Float(l, 3);       // Astronomical unit scale factor
-                        float o_nsegments = llList2Integer(l, 4);   // Number of segments to plot
-                        vector o_sunpos = (vector) llList2String(l, 5); // Position of Sun
-                        flPlotPerm = llList2Integer(l, 6);          // Use permanent lines ?
-
-                        float o_period = llList2Float(s_elem, 15) * 365.25;
-                        float o_timestep;
-                        float o_aulimit = llList2Float(s_elem, 13) * 5; // Limit to plot open trajectories
-                        if (o_parahyper) {
-//  HACK--THIS SHOULD BE BASED ON ECCENTRICITY SOMEHOW
-                            o_timestep = (5 * 365) / o_nsegments;
-                        } else {
-                            o_timestep = o_period / o_nsegments;
-                        }
-                        vector pXYZ0;
-                        vector pXYZl;
-                        for (i = 0; i < o_nsegments; i++) {
-                            list orbXYZ =  posGS(k, o_jd, o_jdf);
-                            vector wXYZ = < llList2Float(orbXYZ, 0),
-                                            llList2Float(orbXYZ, 1),
-                                            llList2Float(orbXYZ, 2) >;
-                            vector pXYZr = (wXYZ * o_auscale) + o_sunpos;
-                            if (i == 0) {
-                                pXYZ0 = pXYZr;
-                            } else {
-                                plotSeg(pXYZl, pXYZr, o_sunpos.z);
-                                llSleep(0.15);
-                            }
-                            pXYZl = pXYZr;
-                            list ijd = sumJD([ o_jd, o_jdf ], o_timestep);
-                            o_jd = llList2Integer(ijd, 0);
-                            o_jdf = llList2Integer(ijd, 1);
-
-                            if (o_parahyper &&
-                                (((llVecDist(pXYZl, o_sunpos) / o_auscale) > o_aulimit) ||
-                                 (i > (o_nsegments - 1)))) {
-                                if (o_arm > 0) {
-                                    llMessageLinked(LINK_THIS, LM_CP_RESUME, "", id);
-                                    return;
-                                } else {
-                                    o_arm++;
-                                    //  Restart to draw incoming arm
-                                    o_jd = llList2Integer(s_elem, 11);
-                                    o_jdf = llList2Float(s_elem, 12);
-                                    i = -1;     // Because bottom of loop will increment
-                                    o_timestep = -o_timestep;
-                                }
-                            }
-                         }
-                        plotSeg(pXYZl, pXYZ0, o_sunpos.z);
-                    }
-                    llMessageLinked(LINK_THIS, LM_CP_RESUME, "", id);
-                }
-
-            //  LM_OR_ELLIPSE (602): Plot orbit ellipse
-
-            } else if (num == 999999 + LM_OR_ELLIPSE) {
-                if (s_sources != [ ]) {
-                    list l = llCSV2List(str);
-                    integer i;
-                    integer k = 1;
-                    integer n = llGetListLength(s_sources);
-                    string body = llList2String(l, 0);
-                    s_elem = [ ];
-                    for (i = 0; i < n; i += s_sourcesE, k++) {
-                        if (llList2String(s_sources, i) == body) {
-                            s_elem = llList2List(s_sources, i, i + (s_sourcesE - 1));
-                            jump foundIt;
-                        }
-                    }
-                    @foundIt;
-
-                    /*  We can only display an ellipse if an object is being
-                        tracked and its eccentricity is less than 1.  *_/
-                    if ((s_elem != [ ]) &&
-                        (llList2Float(s_elem, 4) < 1)) {
-                        float o_auscale = llList2Float(l, 3);           // Astronomical unit scale factor
-                        vector o_sunpos = (vector) llList2String(l, 4); // Position of Sun
-                        float pdays = llList2Float(s_elem, 15) * 365.25; // Orbital period in days
-
-                        //  Compute the location of the periapse
-
-                        list periXYZ =  posGS(k,llList2Integer(s_elem, 11),
-                                                llList2Float(s_elem, 12));
-                        vector wXYZ = < llList2Float(periXYZ, 0),
-                                        llList2Float(periXYZ, 1),
-                                        llList2Float(periXYZ, 2) >;
-                        vector pXYZr = (wXYZ * o_auscale) + o_sunpos;
-//tawk("Periapse location: " + (string) pXYZr);
-
-                        //  Compute the location of the apoapse
-
-                        list pjd = sumJD(llList2List(s_elem, 11, 12),
-                                         pdays / 2);
-                        list apoXYZ = posGS(k, llList2Integer(pjd, 0),
-                                               llList2Float(pjd, 1));
-                        wXYZ = < llList2Float(apoXYZ, 0),
-                                 llList2Float(apoXYZ, 1),
-                                 llList2Float(apoXYZ, 2) >;
-                        vector aXYZr = (wXYZ * o_auscale) + o_sunpos;
-//tawk("Apoapse location: " + (string) aXYZr);
-
-                        //  Compute the location of a co-vertex of the ellipse
-
-                        list cjd = sumJD(llList2List(s_elem, 11, 12),
-                                            pdays *
-                                            (0.25 - (llList2Float(s_elem, 4) / TWO_PI)));
-                        list cvxLBR = posGS(k, llList2Integer(cjd, 0),
-                                               llList2Float(cjd, 1));
-                        wXYZ = < llList2Float(cvxLBR, 0),
-                                 llList2Float(cvxLBR, 1),
-                                 llList2Float(cvxLBR, 2) >;
-                        vector cXYZr = (wXYZ * o_auscale) + o_sunpos;
-//tawk("Co-vertex location: " + (string) aXYZr);
-
-                        /*  Compose and send a LM_OR_ELEMENTS message to the
-                            Orbits module with "just the facts" needed for it
-                            to configure an "Orbit ellipse" object to represent
-                            the orbit.  *_/
-
-                        llMessageLinked(LINK_THIS, LM_OR_ELEMENTS,
-                            llList2Json(JSON_ARRAY, [
-                                k,                          // 0    Body number
-                                llList2String(s_elem, 0),   // 1    Body name
-                                pXYZr,                      // 2    Periapse location
-                                aXYZr,                      // 3    Apoapse location
-                                llList2Float(s_elem, 3),    // 4    Semi-major axis
-                                llList2Float(s_elem, 4),    // 5    Eccentricity
-                                o_auscale,                  // 6    Astronomical unit scale factor
-                                cXYZr                       // 7    Co-vertex location
-                            ]), whoDat);
-                    }
-                }
-*/
 
             //  LM_GP_UPDATE (771):  Update positions for Julian day
 
@@ -669,9 +456,6 @@ s_elem = llList2List(s_sources, src * s_sourcesE, ((src + 1) * s_sourcesE) - 1);
                                 llList2Json(JSON_ARRAY, [ "KABOOM", i ]));
                             source_keys = llListReplaceList(source_keys,
                                 [ NULL_KEY ], i - 1, i - 1);
-//tawk("Source " + (string) i + " " + llList2String(s_sources, i * s_sourcesE) + ": Kaboom!  " +
-//    "rwhere " + (string) rwhere + " s_auscale " + (string) s_auscale + " dpos " + (string) deployerPos +
-//    "\n  " + llList2CSV(source_keys));
                         } else {
                             string upsource = "{" + (string) i + "}" +
                                 fuis(rwhere.x) + fuis(rwhere.y) + fuis(rwhere.z);

@@ -247,7 +247,6 @@
             if ((i + 1) < argn) {
                 val = llList2Float(args, i + 1);
             }
-//tawk("arg " + (string) i + "  var " + var + "  val " + (string) val);
             if (!spec(val)) {
                 tawk("Bad value for var " + var +
                     " args[" + (string) (i + 1) + "]: " + (string) val +
@@ -463,9 +462,6 @@
                 llEuler2Rot(<PI_BY_TWO, 0, 0>),
                 -1);
             llMessageLinked(LINK_THIS, LM_GC_SOURCES,
-/*
-                (string) (nCentres + llGetListLength(source_keys)), whoDat);
-*/
                 llList2Json(JSON_ARRAY,
                     [ nCentres + llGetListLength(source_keys), // Number of sources
                       0,                            // This source index (0 = centre)
@@ -492,9 +488,6 @@
                 llEuler2Rot(<PI_BY_TWO, 0, 0>),
                 massn);
             llMessageLinked(LINK_THIS, LM_GC_SOURCES,
-/*
-                (string) (nCentres + llGetListLength(source_keys)), whoDat);
-*/
                 llList2Json(JSON_ARRAY,
                     [ nCentres + llGetListLength(source_keys), // 0  Number of sources
                       llGetListLength(source_keys), // 1    Source index

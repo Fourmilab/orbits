@@ -433,7 +433,7 @@ Fixed propagation of the legend settings to Numerical Integration.
 
 Completed the initial implementation of a replacement for the Pluto
 ephemeris calculator with a stripped-down version of the Minor Planets
-evaluator using the JPL Small Body Database orbital elements for Pluto,
+evaluator using the JPL Small-Body Database orbital elements for Pluto,
 which are hard coded into the s_elem list in the source.  From a
 cursory test, plotting position and drawing the orbit appear to be
 working OK, but fitting an orbit ellipse is wrong (while fitting an
@@ -523,7 +523,7 @@ the orbit within the range specified in the addCluster() call,
 genCluster computes the velocity of a body at periapse in an orbit with
 the chosen semi-major axis and eccentricity around the centre of mass
 using the vis-viva equation:
-    https://en.wikipedia.org/wiki/Vis-viva_equation
+    https:notecards/minor_planets.nc//en.wikipedia.org/wiki/Vis-viva_equation
 which simply expresses the invariant total energy of a geodesic orbit
 as the sum of its gravitational potential and kinetic energy and
 solving for periapse velocity, which is:
@@ -787,14 +787,159 @@ bodies as well as their index, permits quoted name fields, and respects
 letter case for body names, including those it forwards to Minor Planets
 and Galactic Centre for handling.
 
+Completed a major revision to Numerical Integration's communication
+with its Mass objects.  These previously used hex-encoded floating
+point numbers to pass initial creation parameters and settings to
+masses, and decimal numbers to send new positions.  Now they all use
+Base64-encoded fuis() and siuf() to send floating-point values with
+full precision in base64 encoded binary strings (actually, integers).
+This allowed the complete elimination of the LSL Library Float2Hex
+function, which was huge in terms to static memory and slow.  All
+onward communications from Numerical Integration now use base64
+encoding, although other components still speak in primitive pidgin
+dialects.
+
+2021 February 9
+
+Ran a Numerical Integration "Galcent" simulation with "Set paths lines"
+overnight with no problems.
+
+Updated Galactic Centre and Source to communicate settings to the
+sources using fuis() and siuf() instead of decimal numbers.  This is
+faster and prevents loss of precision on values such as AUscale which
+might otherwise be truncated.
+
+Removed decoding of settings in Galactic Centre and Galactic Patrol
+which were never actually used by those modules.
+
+2021 February 10
+
+Made the long-deferred and much-dreaded sweep through all of the Solar
+System planets, updating them to receive their settings and update
+from the deployer via fuis()/siuf().  Most of the planets were broken
+with respect to "Set paths lines", not containing the required flPlotLine
+object, which is now fixed.  I cleaned up some obsolete code in the
+planets, some dating back to their Flocking Birds ancestor.  The Asteroid
+and Comet models were updated like the planets, and their generation of
+a floating text legend made to respect "Set labels" from the deployer.
+
+Set the colour of the trails drawn by Solar System planets based upon
+the resistor colour code of their planet number.  Asteroids and comets
+draw a silver trail, based on the 10% tolerance band colour.
+
+Moved the asteroid.lsl, comet.lsl, and comet_head.lsl scripts from the
+scripts/ephemeris directory, where they were incorrectly placed, to the
+scripts/planets directory where they belong.
+
+Installed the new, much faster, version of fuis() in Galactic Centre,
+Galactic Patrol, Gravitation, and Numerical Integration.  This version
+removes capabilities we don't require (preservation of sign on negative
+zero and encoding of infinities) and, in return, runs almost three
+times faster than the version from the LSL Library.
+
+2021 February 11
+
+Rewrote the orbit computation code in the Orbits script's handling of
+the LM_OR_PLOT and LM_EP_RESULT messages to store all its Julian dates
+in the [ whole_day, fraction ] list format, use sumJD() to increment
+dates while plotting the orbit, and a new compJD() function to compare
+dates in list format.  This removes a great deal of code gnarl and
+makes it much easier to understand what is going on.
+
+Removed the special-purpose code for closing elliptical orbits and
+replaced it with simple computation of the closing segment.  This
+allows the adaptive segment length mechanism to work on the first
+and last segments of the orbit without any special cases or duplication
+of code.
+
+Replaced the complex and ugly code for plotting parabolic and
+hyperbolic trajectories with a much simpler strategy which computes the
+start and end dates of the plot by subtracting and adding the extent to
+be plotted from the perihelion date.  These are then used precisely as
+the start and end dates of an elliptical orbit, and allows the adaptive
+segment length mechanism to be used without modification.
+
+Created a new model script, "Nearby Stars", based upon the table in A.
+K. Dewdney's "The Armchair Universe", p. 235.  This represents the
+positions and velocities of stars near the Sun, as known in 1988.  I'll
+have see what's available from the Gaia data releases or more recent
+catalogues to create a more comprehensive model.  This isn't a
+particularly interesting model, since the nearby stars are so far apart
+with respect to their masses, they just keep on going with their own
+proper motions until they pass the Kaboom radius and go away.  I'll
+have to experiment with stirring things up with, say, a passing through
+intermediate mass black hole, to see if that makes things more
+thrilling.
+
+2021 February 13
+
+Completed a major revision of how orbits and plotted and ellipses fit
+for orbits of sources orbiting the Galactic Centre.  Due to the
+historical path by which the code was developed, there was a large
+degree of duplication between the orbit displays generated for Solar
+System bodies in Orbits and the equivalent code in Galactic Patrol.
+This not only wasted space, but it made maintenance more difficult
+because very similar functions were done in two different places. When,
+for example, we added the adaptive step size for plotting orbits in
+Orbits, it only applied to Solar System bodies and not Galactic Centre
+sources.
+
+The revision ripped out essentially all of the orbit-related code from
+Galactic Centre and Galactic Patrol and replaced it with transmission
+of the essential orbital elements when sources are added, then the
+Orbits module sending a LM_EP_CALC message to Galactic Patrol to
+calculate the positions of the source.  This is not entirely
+straightforward because the ephemeris calculators for Solar System
+return heliocentric spherical co-ordinates (L, B, R), while Galactic
+Centre's evaluator computes rectangular (Cartesian) co-ordinates (X, Y,
+Z), so when using these co-ordinates code must be aware of the source.
+Nonetheless, the duplication of code is minor and most of the orbit
+display code is now in common.  This dramatically reduced memory usage
+in Galactic Centre and Galactic Patrol, making them entirely safe from
+out of memory conditions even when loading large models such as our
+"Sgr A*" script.
+
+Note that Minor Planets still has its own handler for the LM_OR_ELLIPSE
+message, which largely duplicates that in Orbits.  Another refinement
+would be getting rid of it as well, but I will leave this for another
+day, as the level of duplication is modest and we aren't tight on
+memory in Minor Planets.
+
+2021 February 14
+
+Promoted the script containing examples of representative minor planets
+to notecards/minor_planets.nc and added to the Git repository.
+
+Completed the rationalisation of orbit display by removing the
+LM_OR_ELLIPSE handler in Minor Planets and integrating generation of
+orbit ellipses for minor planets with the main code in Orbits.  This
+required ironing out a few wrinkles, such as transmitting eccentricity
+and semi-major axis back to Orbits when a new minor planet is tracked
+and modifying the apsides() function in Orbits to correctly compute the
+perihelion and aphelion dates for minor planets from their orbital
+elements, but in the end little code was added there and a great deal
+removed from Minor Planets.
+
+Cleaned up all of the dead code commented out and made obsolete by the
+re-organisation of the orbit and ellipse display mechanisms.
 
 
+
+Earth:
+    Select correct texture for month.
+    Orient side toward Sun based upon GMST.
+
+        Moon
+            Compute position and display.
+            Orient correct hemisphere toward Earth.
+
+Saturn:
+    Check inclination and north pole orientation.
 
 
 
 
 Set path length to set expiration time of path particles.
-
 
 Merge mode for collisions.  Goes "blop", sums mass and
 momentum vectors, averages colours, and adjusts radius
@@ -823,66 +968,9 @@ Fix paths alignment.
 
 Specify orbits by orbital elements, derive r and rdot.
 
-Model of comet with particle system, orient so tail points away from Sun.
-
-Model of asteroid (Phobos texture map?).
-
-Plot orbits as tori deformed into ellipses, oriented in space according
-to the orbital elements.  Re-parameterise orbit into centre and local
-Z axis vector.
-    Step 1: From semi-major axis and eccentricity, compute the major
-    and minor axes and create cylinder or torus with the specified
-    dimensions.
-
-    Step 2: From the semi-major axis and eccentricity, compute a
-    focus.  Translate the ellipse so that the focus aligns with
-    the central mass.  At this point, the ellipse will be
-    coplanar with the ecliptic.
-
-    Step 3: From the argument of the periapse. rotate the ellipse
-    around the focus so that the periapse aligns with the
-    perihelion.
-
-    Alternative approach (maybe easier since all rotations are
-    around centre).
-        1.  Find points of periapse and apoapse.  Bisect them,
-            This is the centre of the ellipse in space.  Create
-            an ellipse there with the proper eccentricity in
-            the plane of the ecliptic, aligned with the X and Y axes.
-                Key formulae:
-                    a = semimajor axis
-                    e = eccentricity
-                    b = semiminor axis = a * sqrt(1 - (e * e))
-                    c = focus (distance from centre, location of
-                        central mass) = a * e
-                    apoapsis = a * (1 + e)
-                    periapsis = a * (1 - e)
-
-        2.  Rotate the ellipse around the ecliptic Z axis until
-            its major axis is aligned with the vector from the
-            periapse and apoapse.  This should handle the argument
-            of the perihelion.
-
-        3.  Rotate the ellipse around its (rotated) minor axis until it
-            passes through the periapse and apoapse).  At this point it
-            should pass through the periapse and apoapse at the correct
-            points.
-
-        4.  Now all that remains is to rotate the ellipse one more
-            around its major axis to the specified inclination,
-            preserving the periapse and apoapse.
-
-
-Handle propagating orbital period for comets and asteroids to
-Orbits, and handle plotting parabolic, hyperbolic, and extremely
-eccentric elliptical orbits.
-
-Plotting orbits: adaptive segment length and number, handle 10 metre
-rez limit by jumping around.
+Plotting orbits: adaptive segment length and number.
 
 Scale particle params with overall scale of comet?
-
-Propagate legend display to other bodies.
 
 Set legend on/off [ body... / all ]
 
