@@ -550,6 +550,7 @@ ephCalcStart = llGetTime();
         //  Boot                    Reset the script to initial settings
 
         } else if (abbrP(command, "bo")) {
+            llRegionSay(massChannel, llList2Json(JSON_ARRAY, [ ypres ]));
             //  Reset the script processor
             llMessageLinked(LINK_THIS, LM_SP_RESET, "", whoDat);
             llResetOtherScript("Minor Planets");
@@ -711,7 +712,7 @@ ephCalcStart = llGetTime();
                 if (plno == 0) {
                     sp = -1;
                 }
-                llRezObject("S: " + name, where, ZERO_VECTOR,
+                llRezAtRoot("S: " + name, where, ZERO_VECTOR,
                     llEuler2Rot(<0, PI_BY_TWO, 0>), sp);
                 llSetRegionPos(eggPos);
             }
@@ -1218,7 +1219,7 @@ updateEphemeris((1 << 10) - 2,
                     if (llList2Integer(args, 3)) {
                         bname = "Asteroid";
                     }
-                    llRezObject("S: " + bname, llGetPos() + <0, 0, s_zoffset>, ZERO_VECTOR,
+                    llRezAtRoot("S: " + bname, llGetPos() + <0, 0, s_zoffset>, ZERO_VECTOR,
                         llEuler2Rot(<0, PI_BY_TWO, 0>), 10);
                 } else {
                     //  Dropping tracking of current object
