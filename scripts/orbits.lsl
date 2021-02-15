@@ -535,11 +535,13 @@
                 }
             }
 
-            integer segments = 96;
+            integer segments = 48;
             integer permanent = FALSE;
             if (argn > 2) {
                 if (abbrP(llToLower(llList2String(args, 2)), "el")) {
                     segments = -999;
+                } else if (abbrP(llToLower(llList2String(args, 2)), "pe")) {
+                    permanent = TRUE;
                 } else {
                     segments = llList2Integer(args, 2);
                 }
