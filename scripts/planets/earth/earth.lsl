@@ -3,43 +3,43 @@
 
                     Fourmilab Solar System
 
-                       Moon Definition
+                      Planet Definition
 
     */
 
     list planet = [
-        "Luna",             // 0  Name of body
-        "Earth",            // 1  Primary
+        "Earth",            // 0  Name of body
+        "Sun",              // 1  Primary
 
         //  Orbital elements
         2451545,            // 2  Epoch (J2000), integer to avoid round-off
 
-        384400,             // 3  a    Semi-major axis, km
-        0.0554,             // 4  e    Eccentricity
-        5.16,               // 5  i    Inclination, degrees
-        125.08,             // 6  Ω    Longitude of the ascending node, degrees
-        318.15,             // 7  ω    Argument of periapsis, degrees
-        135.27,             // 8  M    Mean anomaly, degrees
+        1.00000011,         // 3  a    Semi-major axis, AU
+        0.01671022,         // 4  e    Eccentricity
+        0.00005,            // 5  i    Inclination, degrees
+        -11.26064,          // 6  Ω    Longitude of the ascending node, degrees
+        102.94719,          // 7  ω    Argument of periapsis, degrees
+        100.46435,          // 8  L    Mean longitude, degrees
 
-        //  Orbital element precession periods
-        0,                  // 9  a
-        0,                  // 10 e
-        0,                  // 11 i
-        18.6,               // 12 Ω    Precession period/years
-        5.997,              // 13 ω    Precession period/years
-        0,                  // 14 M
+        //  Orbital element centennial rates
+        -0.00000005,        // 9  a    AU/century
+        -0.00003804,        // 10 e    e/century
+        -46.94,             // 11 i    "/century
+        -18228.25,          // 12 Ω    "/century
+        1198.28,            // 13 ω    "/century
+        129597740.63,       // 14 L    "/century
 
         //  Physical properties
-        1738.1,             // 15 Equatorial radius, km
-        1736.0,             // 16 Polar radius, km
-        7.342e22,           // 17 Mass, kg
-        3.344,              // 18 Mean density, g/cm³
-        1.62,               // 19 Surface gravity, m/s²
-        2.38,               // 20 Escape velocity, km/s
-        27.321661,          // 21 Sidereal rotation period, days
-        <266.86, 65.64, 0>, // 22 North pole, RA, Dec
-        1.5424,             // 23 Axial inclination, degrees
-        0.136               // 24 Albedo
+        6378.1,             // 15 Equatorial radius, km
+        6356.8,             // 16 Polar radius, km
+        5.97237e24,         // 17 Mass, kg
+        5.514,              // 18 Mean density, g/cm³
+        9.80665,            // 19 Surface gravity, m/s²
+        11.186,             // 20 Escape velocity, km/s
+        0.99726968,         // 21 Sidereal rotation period, days
+        <0, 90, 0>,         // 22 North pole, RA, Dec
+        23.4392811,         // 23 Axial inclination, degrees
+        0.367               // 24 Albedo
     ];
 
     string ourName;                     // Our object name
@@ -58,9 +58,9 @@
 
     //  Settings communicated by deployer
     float s_kaboom = 50;                // Self destruct if this far (AU) from deployer
-    float s_auscale = 0.2;              // Astronomical unit scale
+    float s_auscale = 0.3;              // Astronomical unit scale
     float s_radscale = 0.0000025;       // Radius scale
-    integer s_trails = TRUE;            // Plot orbital trails ?
+    integer s_trails = FALSE;           // Plot orbital trails ?
     float s_pwidth = 0.01;              // Paths/trails width
     float s_mindist = 0.1;              // Minimum distance to move
 
@@ -68,20 +68,19 @@
     string ypres = "B?+:$$";            // It's pronounced "Wipers"
     string Collision = "Balloon Pop";   // Explosion sound clip
 
-    vector deployerPos;                 // Deployer position (centre of cage)
-
-    float startTime;                    // Time we were placed
+    vector deployerPos;                 // Deployer position
 
     key whoDat;                         // User with whom we're communicating
     integer paths;                      // Draw particle trail behind masses ?
-    /* IF TRACE */
-    integer b1;                         // Used to trace only mass 1
-    /* END TRACE */
-    integer stepCount;                  // Total step count
-float stepTime;                         // Step sequence start time
-integer stepMove = 0;
 
-vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
+vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LIST
+
+    //  Link messages
+
+    //  Planetary satellite message
+
+    integer LM_PS_DEPMSG = 811;         // Message from deployer
+    integer LM_PS_UPDATE = 812;         // Update position and rotation
 
     //  Destroy mass after collision or going out of range
 
@@ -125,6 +124,77 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
 
         llSleep(1);         // Need to wait to allow particles and sound to play
         llDie();
+    }
+
+    //  tellSat  --  Forward deployer message to satellites
+
+    tellSat(string message) {
+        llMessageLinked(LINK_ALL_CHILDREN, LM_PS_DEPMSG,
+            message, deployer);
+//tawk("Fwd: " + message);
+    }
+
+    /*  fuis  --  Float union to base64-encoded integer
+                  Designed and implemented by Strife Onizuka:
+                    http://wiki.secondlife.com/wiki/User:Strife_Onizuka/Float_Functions  */
+
+    string fv(vector v) {
+        return fuis(v.x) + fuis(v.y) + fuis(v.z);
+    }
+
+    string fuis(float a) {
+        //  Detect the sign on zero.  It's ugly, but it gets you there
+        //  integer b = 0x80000000 & ~llSubStringIndex(llList2CSV([a]), "-");   // Sign
+        /*  Test for negative number, ignoring the difference between
+            +0 and -0.  While this does not preserve floating point
+            numbers bit-for-bit, it doesn't make any difference in
+            our calculations and is almost three times faster than
+            the original code above.  */
+        integer b = 0;
+        if (a < 0) {
+            b = 0x80000000;
+        }
+
+        if (a) {        // Is it greater than or less than zero ?
+            //  Denormalized range check and last stride of normalized range
+            if ((a = llFabs(a)) < 2.3509887016445750159374730744445e-38) {
+                b = b | (integer) (a / 1.4012984643248170709237295832899e-45);   // Math overlaps; saves CPU time
+            //  We never need to transmit infinity, so save the time testing for it.
+            // } else if (a > 3.4028234663852885981170418348452e+38) { // Round up to infinity
+            //     b = b | 0x7F800000;                                 // Positive or negative infinity
+            } else if (a > 1.4012984643248170709237295832899e-45) { // It should at this point, except if it's NaN
+                integer c = ~-llFloor(llLog(a) * 1.4426950408889634073599246810019);
+                //  Extremes will error towards extremes. The following corrects it
+                b = b | (0x7FFFFF & (integer) (a * (0x1000000 >> c))) |
+                        ((126 + (c = ((integer) a - (3 <= (a *= llPow(2, -c))))) + c) * 0x800000);
+                //  The previous requires a lot of unwinding to understand
+            } else {
+                //  NaN time!  We have no way to tell NaNs apart so pick one arbitrarily
+                b = b | 0x7FC00000;
+            }
+        }
+
+        return llGetSubString(llIntegerToBase64(b), 0, 5);
+    }
+
+    /*  siuf  --  Base64 encoded integer to float
+                  Designed and implemented by Strife Onizuka:
+                    http://wiki.secondlife.com/wiki/User:Strife_Onizuka/Float_Functions  */
+
+    vector sv(string b) {
+        return(< siuf(llGetSubString(b, 0, 5)),
+                 siuf(llGetSubString(b, 6, 11)),
+                 siuf(llGetSubString(b, 12, -1)) >);
+    }
+
+    float siuf(string b) {
+        integer a = llBase64ToInteger(b);
+        if (0x7F800000 & ~a) {
+            return llPow(2, (a | !a) + 0xffffff6a) *
+                      (((!!(a = (0xff & (a >> 23)))) * 0x800000) |
+                       (a & 0x7fffff)) * (1 | (a >> 31));
+        }
+        return (!(a & 0x7FFFFF)) * (float) "inf" * ((a >> 31) | 1);
     }
 
     //  ef  --  Edit floats in string to parsimonious representation
@@ -307,6 +377,105 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                  r * llSin(b) >;
     }
 
+    /*  jyearl  --  Convert Julian date/time list to year, month, day,
+                    which are returned as a list.  */
+
+    list jyearl(list tdl) {
+        float a;
+        float alpha;
+        integer yy;
+        integer mm;
+
+        float td = llList2Float(tdl, 0);
+        float tdf = llList2Float(tdl, 1);
+
+        tdf += 0.5;                     // Adjust for Julian date changes at noon
+        if (tdf > 1.0) {                // If this advanced day
+            td++;                       //    then bump the integral day
+            tdf -= 1;                   //    and decrement fractional day
+        }
+
+        float z = td;
+        float f = tdf;
+
+        if (z < 2299161.0) {
+            a = z;
+        } else {
+            alpha = llFloor((z - 1867216.25) / 36524.25);
+            a = z + 1 + alpha - llFloor(alpha / 4);
+        }
+
+        float b = a + 1524;
+        float c = llFloor((b - 122.1) / 365.25);
+        float d = llFloor(365.25 * c);
+        float e = llFloor((b - d) / 30.6001);
+
+        if (e < 14) {
+            mm = (integer) (e - 1);
+        } else {
+            mm = (integer) (e - 13);
+        }
+
+        if (mm > 2) {
+            yy = (integer) (c - 4716);
+        } else {
+            yy = (integer) (c - 4715);
+        }
+
+        return [
+                 yy,                                            // year
+                 mm,                                            // month
+                 (integer) (b - d - llFloor(30.6001 * e) + f)   // day
+               ];
+    }
+
+    /*  GMSTX  --  Calculate Greenwich Mean Sidereal Time for a
+                   given instant expressed as a Julian date and
+                   fraction.  We use a less general expression
+                   than in Earth and Moon Viewer because it
+                   yields more accurate results when computed in
+                   the single-precision floating point of LSL.  */
+
+    float gmstx(float jd, float jdf) {
+        /*  See simplified formula in:
+                https://aa.usno.navy.mil/faq/docs/GAST.php  */
+        float D = (jd - 2451545) + jdf;
+        float GMST = 18.697374558 + 24.06570982441908 * D;
+        GMST -= 24.0 * (llFloor(GMST / 24.0));
+        return GMST;
+    }
+
+    //  updateEarth  --  Update items specific to the Earth
+
+    integer currentMonth = -1;                  // Current month texture
+
+    updateEarth(integer jd, float jdf) {
+
+        /*  If the month has changed, update the texture to
+            the Blue Marble monthly image for this month.  */
+
+        list yymmdd = jyearl([ jd, jdf ]);
+        if (llList2Integer(yymmdd, 1) != currentMonth) {
+            currentMonth = llList2Integer(yymmdd, 1);
+            llSetLinkPrimitiveParamsFast(LINK_THIS,
+                [ PRIM_TEXTURE, ALL_SIDES,
+                  "Earth_Day_" + llGetSubString("0" +
+                    (string) currentMonth, -2, -1),
+                  <1, 1, 1>, <0.75, 0, 0>, 3 * PI_BY_TWO ]);
+        }
+    }
+
+    //  updateSat  --  Update satellites of planet
+
+    updateSat(integer jd, float jdf, vector npos) {
+        llMessageLinked(LINK_ALL_CHILDREN, LM_PS_UPDATE,
+                        llList2Json(JSON_ARRAY,
+                            [ jd,               // 0,1  Julian day and fraction
+                              fuis(jdf),
+                              fv(npos)          // 2    New position of planet
+                            ]), deployer);
+    }
+
     //  tawk  --  Send a message to the interacting user in chat
 
     tawk(string msg) {
@@ -325,7 +494,6 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
             }
         }
     }
-    /* END TRACE */
 
     default {
 
@@ -345,7 +513,7 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
 
                 ourName = llGetObjectName();
                 deployer = llList2Key(llGetObjectDetails(llGetKey(),
-                                         [ OBJECT_REZZER_KEY ]), 0);
+                                        [ OBJECT_REZZER_KEY ]), 0);
 
                 //  Set sit target
 
@@ -359,8 +527,6 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                 //  Inform the deployer that we are now listening
                 llRegionSayTo(deployer, massChannel,
                     llList2Json(JSON_ARRAY, [ "PLANTED", m_index ]));
-
-                stepCount = 0;
 
                 initState = 1;          // Waiting for SETTINGS and INIT
             }
@@ -404,7 +570,8 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                                  "\n    Script memory.  Free: " + (string) mFree +
                                     "  Used: " + (string) mUsed + " (" +
                                     (string) ((integer) llRound((mUsed * 100.0) / (mUsed + mFree))) + "%)"
-                                );
+                            );
+                            tellSat(message);
                         }
 
                     //  PINIT  --  Set initial parameters after creation
@@ -412,15 +579,11 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                     } else if (ccmd == "PINIT") {
                         if (m_index == llList2Integer(msg, 1)) {
                             m_name = llList2String(msg, 2);             // Name
-                            deployerPos = (vector) llList2String(msg, 3); // Deployer position
-                            m_scalePlanet = llList2Float(msg, 4);       // Planet scale
-                            m_scaleStar =  llList2Float(msg, 5);        // Star scale
+                            deployerPos = sv(llList2String(msg, 3));    // Deployer position
+                            m_scalePlanet = siuf(llList2String(msg, 4));    // Planet scale
+                            m_scaleStar =  siuf(llList2String(msg, 5)); // Star scale
                             m_jd = llList2Integer(msg, 6);              // Epoch Julian day
-                            m_jdf = llList2Float(msg, 7);               // Epoch Julian day fraction
-
-                            /* IF TRACE */
-                            b1 = m_index == 1;
-                            /* END TRACE */
+                            m_jdf = siuf(llList2String(msg, 7));        // Epoch Julian day fraction
 
                             //  Set properties of object
                             float oscale = m_scalePlanet;
@@ -441,9 +604,6 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                                 npole.x * DEG_TO_RAD, npole.y * DEG_TO_RAD);
                             vector npvec = sphRect(llList2Float(npecl, 0), llList2Float(npecl, 1), 1);
                             rotation nprot = llRotBetween(<-1, 0, 0>, npvec);
-/* tawk("JD " + (string) m_jd + "  JDF " + (string) m_jdf +
-    "  obliqeq " + (string) obliqeq(m_jd, m_jdf) +
-    "  pole " + (string) sphRect(llList2Float(npecl, 0), llList2Float(npecl, 1), 1)); */
 
                             llSetLinkPrimitiveParamsFast(LINK_THIS, [
                                 PRIM_DESC,  llList2Json(JSON_ARRAY,
@@ -453,12 +613,9 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                             ]);
                             llSetStatus(STATUS_PHANTOM | STATUS_DIE_AT_EDGE, TRUE);
 
+                            tellSat(message);
                             initState = 2;                  // INIT received, waiting for SETTINGS
                         }
-
-                    //  RESET  --  Restore initial position and velocity
-
-                    } else if (ccmd == "RESET") {
 
                     //  SETTINGS  --  Set simulation parameters
 
@@ -467,32 +624,30 @@ vector m_colour = < 0.3, 0.3, 0.9 >;    // HACK--SPECIFY COLOUR IN planet LIST
                         if ((bn == 0) || (bn == m_index)) {
                             paths = llList2Integer(msg, 2);
                             s_trace = llList2Integer(msg, 3);
-                            s_kaboom = (float) llList2String(msg, 4);
-                            s_auscale = (float) llList2String(msg, 5);
-                            s_radscale = (float) llList2String(msg, 6);
+                            s_kaboom = siuf(llList2String(msg, 4));
+                            s_auscale = siuf(llList2String(msg, 5));
+                            s_radscale = siuf(llList2String(msg, 6));
                             s_trails = llList2Integer(msg, 7);
-                            s_pwidth = (float) llList2String(msg, 8);
-                            s_mindist = (float) llList2String(msg, 9);
+                            s_pwidth = siuf(llList2String(msg, 8));
+                            s_mindist = siuf(llList2String(msg, 9));
+                            tellSat(message);
                         }
 
                         if (initState == 2) {
                             initState = 3;                  // INIT and SETTINGS received, now flying
-                            startTime = llGetTime();        // Remember when we started
                         }
 
                         //  Set or clear particle trail depending upon paths
                         if (paths) {
                             llParticleSystem(
                                 [ PSYS_PART_FLAGS, PSYS_PART_EMISSIVE_MASK |
-                                    PSYS_PART_INTERP_COLOR_MASK |
-                                    PSYS_PART_RIBBON_MASK,
+                                  PSYS_PART_INTERP_COLOR_MASK |
+                                  PSYS_PART_RIBBON_MASK,
                                   PSYS_SRC_PATTERN, PSYS_SRC_PATTERN_DROP,
                                   PSYS_PART_START_COLOR, m_colour,
                                   PSYS_PART_END_COLOR, m_colour,
-///                                  PSYS_PART_START_SCALE, <0.25, 0.25, 0.25>,
-//                                  PSYS_PART_END_SCALE, <0.25, 0.25, 0.25>,
-PSYS_PART_START_SCALE, <0.75, 0.75, 1>,
-PSYS_PART_END_SCALE, <0.75, 0.75, 1>,
+                                  PSYS_PART_START_SCALE, <0.75, 0.75, 1>,
+                                  PSYS_PART_END_SCALE, <0.75, 0.75, 1>,
                                   PSYS_SRC_MAX_AGE, 0,
                                   PSYS_PART_MAX_AGE, 8.0,
                                   PSYS_SRC_BURST_RATE, 0.0,
@@ -505,16 +660,8 @@ PSYS_PART_END_SCALE, <0.75, 0.75, 1>,
                     //  UPDATE  --  Update mass position
 
                     } else if (ccmd == "UPDATE") {
-if (llList2Integer(msg, 1) != m_index) {
-    tawk(m_name + ": Huh?  Got update for wrong index: " + llList2CSV(msg));
-    return;
-}
-if ((stepCount % 64) == 0) {
-    stepTime = llGetTime();
-}
-//tawk(m_name + ":  " + llList2CSV(msg));
                         vector p = llGetPos();
-                        vector npos = (vector) llList2String(msg, 2);
+                        vector npos = sv(llList2String(msg, 2));
                         float dist = llVecDist(p, npos);
 if (s_trace) {
     tawk(m_name + ": Update pos from " + (string) p + " to " + (string) npos +
@@ -526,27 +673,29 @@ if (s_trace) {
                             return;
                         }
                         if (dist >= s_mindist) {
+                            llSetLinkPrimitiveParamsFast(LINK_THIS,
+                                [ PRIM_POSITION, npos ]);
+                            if (paths) {
+                                llSetLinkPrimitiveParamsFast(LINK_THIS,
+                                    [ PRIM_ROTATION, llRotBetween(<0, 0, 1>, (npos - p)) ]);
+                            }
                             if (s_trails) {
                                 flPlotLine(p, npos, m_colour, s_pwidth);
                             }
-                            llSetLinkPrimitiveParamsFast(LINK_THIS,
-                                [ PRIM_POSITION, npos ]);
-if (paths) {
-llSetLinkPrimitiveParamsFast(LINK_THIS,
-    [ PRIM_ROTATION, llRotBetween(<0, 0, 1>, (npos - p)) ]);
-}
-stepMove++;
                         }
-stepCount++;
-/*  For benchmarks
-if ((stepCount % 64) == 0) {
-    float dt = llGetTime() - stepTime;
-    tawk(m_name + ": Update time: " + (string) dt + "  (Step " + (string) stepCount + ", " +
-        (string) stepMove + " moves)");
-}
-*/
+                        integer jd = llList2Integer(msg, 3);
+                        float jdf = siuf(llList2String(msg, 4));
+                        updateEarth(jd, jdf);
+                        updateSat(jd, jdf, npos);
                     }
                 }
             }
         }
+
+touch_start(integer n) {
+    updateEarth(2459259, 0.5);
+    float gmst = gmstx(2446895, 0.5);
+    tawk("GMST " + (string) gmst);
+}
+
      }
