@@ -52,14 +52,12 @@
     integer m_index;                    // Our mass index
     string m_name;                      // Name
     float m_scalePlanet;                // Planet scale
-    float m_scaleStar;                  // Star scale
     integer m_jd;                       // Epoch Julian day
     float m_jdf;                        // Epoch Julian day fraction
 
     //  Settings communicated by deployer
     float s_kaboom = 50;                // Self destruct if this far (AU) from deployer
     float s_auscale = 0.3;              // Astronomical unit scale
-    float s_radscale = 0.0000025;       // Radius scale
     integer s_trails = FALSE;           // Plot orbital trails ?
     float s_pwidth = 0.01;              // Paths/trails width
     float s_mindist = 0.1;              // Minimum distance to move
@@ -423,7 +421,6 @@ vector m_colour = < 0.4, 0.4, 0.4 >;    // HACK--SPECIFY COLOUR IN planet LIST
 
         on_rez(integer start_param) {
             initState = 0;
-//tawk("Luna rez " + (string) start_param);
 
             //  If start_param is zero, this is a simple manual rez
             if (start_param != 0) {
@@ -477,7 +474,6 @@ vector m_colour = < 0.4, 0.4, 0.4 >;    // HACK--SPECIFY COLOUR IN planet LIST
                     m_name = llList2String(msg, 2);             // Name
                     deployerPos = sv(llList2String(msg, 3));    // Deployer position
                     m_scalePlanet = siuf(llList2String(msg, 4));    // Planet scale
-                    m_scaleStar =  siuf(llList2String(msg, 5)); // Star scale
                     m_jd = llList2Integer(msg, 6);              // Epoch Julian day
                     m_jdf = siuf(llList2String(msg, 7));        // Epoch Julian day fraction
 
@@ -518,7 +514,6 @@ vector m_colour = < 0.4, 0.4, 0.4 >;    // HACK--SPECIFY COLOUR IN planet LIST
                     s_trace = llList2Integer(msg, 3);
                     s_kaboom = siuf(llList2String(msg, 4));
                     s_auscale = siuf(llList2String(msg, 5));
-                    s_radscale = siuf(llList2String(msg, 6));
                     s_trails = llList2Integer(msg, 7);
                     s_pwidth = siuf(llList2String(msg, 8));
                     s_mindist = siuf(llList2String(msg, 9));
@@ -563,7 +558,7 @@ vector m_colour = < 0.4, 0.4, 0.4 >;    // HACK--SPECIFY COLOUR IN planet LIST
                                       llList2Float(lp, 4) * DEG_TO_RAD,     // B
                                       llList2Float(lp, 2));                 // R
 
-float s_satscale = 5.833333e-7 * s_auscale;     // Scale factor, satellite orbit km to model metres
+float s_satscale = 1.75e-6 * m_scalePlanet; // Scale factor, satellite orbit km to model metres
                 vector mxyz = lxyz * s_satscale;
 //tawk("Moon lp " + llList2CSV(lp) + "  lxyz " + (string) lxyz + "  mxyz " + (string) mxyz +
 // " s_auscale " + (string) s_auscale + "  s_satscale " + (string) (s_satscale * 1.0e7));
@@ -581,7 +576,6 @@ float s_satscale = 5.833333e-7 * s_auscale;     // Scale factor, satellite orbit
 /*
 }
 */
-
             }
         }
      }

@@ -52,17 +52,16 @@
     integer m_index;                    // Our mass index
     string m_name;                      // Name
     float m_scalePlanet;                // Planet scale
-    float m_scaleStar;                  // Star scale
     integer m_jd;                       // Epoch Julian day
     float m_jdf;                        // Epoch Julian day fraction
 
     //  Settings communicated by deployer
     float s_kaboom = 50;                // Self destruct if this far (AU) from deployer
     float s_auscale = 0.3;              // Astronomical unit scale
-    float s_radscale = 0.0000025;       // Radius scale
     integer s_trails = FALSE;           // Plot orbital trails ?
     float s_pwidth = 0.01;              // Paths/trails width
     float s_mindist = 0.1;              // Minimum distance to move
+    integer s_labels = FALSE;           // Show floating text legend ?
 
     integer massChannel = -982449822;   // Channel for communicating with planets
     string ypres = "B?+:$$";            // It's pronounced "Wipers"
@@ -548,6 +547,17 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
                     //  ypres  --  Destroy mass
 
                     if (ccmd == ypres) {
+                        if (s_trails) {
+                            /*  If we've been littering the world with
+                                flPlotLine tracing our motion, clean them up
+                                now rather than waiting for the garbage
+                                collector to come around.  Note that since
+                                we are the deployer for these objects, they
+                                won't respond to a ypres message from the
+                                deployer which rezzed us.  */
+                            llRegionSay(massChannel,
+                                llList2Json(JSON_ARRAY, [ ypres ]));
+                        }
                         llDie();
 
                     //  COLLIDE  --  Handle collision with another mass
@@ -581,15 +591,11 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
                             m_name = llList2String(msg, 2);             // Name
                             deployerPos = sv(llList2String(msg, 3));    // Deployer position
                             m_scalePlanet = siuf(llList2String(msg, 4));    // Planet scale
-                            m_scaleStar =  siuf(llList2String(msg, 5)); // Star scale
                             m_jd = llList2Integer(msg, 6);              // Epoch Julian day
                             m_jdf = siuf(llList2String(msg, 7));        // Epoch Julian day fraction
 
                             //  Set properties of object
                             float oscale = m_scalePlanet;
-                            if (m_index == 0) {
-                                oscale = m_scaleStar;
-                            }
 
                             //  Compute size of body based upon scale factor
 
@@ -626,7 +632,6 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
                             s_trace = llList2Integer(msg, 3);
                             s_kaboom = siuf(llList2String(msg, 4));
                             s_auscale = siuf(llList2String(msg, 5));
-                            s_radscale = siuf(llList2String(msg, 6));
                             s_trails = llList2Integer(msg, 7);
                             s_pwidth = siuf(llList2String(msg, 8));
                             s_mindist = siuf(llList2String(msg, 9));
@@ -692,10 +697,11 @@ if (s_trace) {
             }
         }
 
+/*
 touch_start(integer n) {
     updateEarth(2459259, 0.5);
     float gmst = gmstx(2446895, 0.5);
     tawk("GMST " + (string) gmst);
 }
-
+*/
      }
