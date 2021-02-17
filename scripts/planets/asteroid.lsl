@@ -30,16 +30,16 @@
         538101628.29,       // 14 L    "/century
 
         //  Physical properties
-        2439.7,             // 15 Equatorial radius, km
-        2439.7,             // 16 Polar radius, km
-        3.3011e23,          // 17 Mass, kg
-        5.427,              // 18 Mean density, g/cm³
-        3.7,                // 19 Surface gravity, m/s²
-        4.25,               // 20 Escape velocity, km/s
-        58.646,             // 21 Sidereal rotation period, days
-        <281.01, 61.41, 0>, // 22 North pole, RA, Dec
-        2.04,               // 23 Axial inclination, degrees
-        0.106               // 24 Albedo
+        0,                  // 15 Equatorial radius, km
+        0,                  // 16 Polar radius, km
+        0,                  // 17 Mass, kg
+        0,                  // 18 Mean density, g/cm³
+        0,                  // 19 Surface gravity, m/s²
+        0,                  // 20 Escape velocity, km/s
+        0,                  // 21 Sidereal rotation period, days
+        ZERO_VECTOR,        // 22 North pole, RA, Dec
+        0,                  // 23 Axial inclination, degrees
+        0                   // 24 Albedo
     ];
 
     string ourName;                     // Our object name
@@ -52,15 +52,11 @@
     integer m_index;                    // Our mass index
     string m_name;                      // Name
     float m_scalePlanet;                // Planet scale
-    float m_scaleStar;                  // Star scale
-    integer m_jd;                       // Epoch Julian day
-    float m_jdf;                        // Epoch Julian day fraction
 
     //  Settings communicated by deployer
     float s_kaboom = 50;                // Self destruct if this far (AU) from deployer
-    float s_auscale = 0.2;              // Astronomical unit scale
-    float s_radscale = 0.0000025;       // Radius scale
-    integer s_trails = TRUE;            // Plot orbital trails ?
+    float s_auscale = 0.3;              // Astronomical unit scale
+    integer s_trails = FALSE;           // Plot orbital trails ?
     float s_pwidth = 0.01;              // Paths/trails width
     float s_mindist = 0.1;              // Minimum distance to move
     integer s_labels = FALSE;           // Show floating text legend ?
@@ -68,7 +64,6 @@
     integer massChannel = -982449822;   // Channel for communicating with planets
     string ypres = "B?+:$$";            // It's pronounced "Wipers"
     string Collision = "Balloon Pop";   // Explosion sound clip
-    string U_deg;                       // U+00B0 Degree Sign
 
     vector deployerPos;                 // Deployer position (centre of cage)
 
@@ -244,81 +239,26 @@ vector m_colour = < 0.749, 0.745, 0.749 >;  // HACK--SPECIFY COLOUR IN planet LI
         );
     }
 
-    /*  obliqeq  --  Calculate the obliquity of the ecliptic for
-                     a given Julian date.  This uses Laskar's
-                     tenth-degree polynomial fit (J. Laskar,
-                     Astronomy and Astrophysics, Vol. 157, page
-                     68 [1986]) which is accurate to within 0.01
-                     arc second between AD 1000 and AD 3000, and
-                     within a few seconds of arc for +/-10000
-                     years around AD 2000.  If we're outside the
-                     range in which this fit is valid (deep
-                     time) we simply return the J2000 value of
-                     the obliquity, which happens to be almost
-                     precisely the mean.  */
+    //  randVec  --  Generate a random unit vector
 
-    float J2000 = 2451545.0;            // Julian day of J2000 epoch
-    float JulianCentury = 36525.0;      // Days in Julian century
+    vector randVec() {
+        /*  Random unit vector by Marsaglia's method:
+            Marsaglia, G. "Choosing a Point from the Surface
+            of a Sphere." Ann. Math. Stat. 43, 645-646, 1972.  */
+        integer outside = TRUE;
 
-    float obliqeq(float jd, float jdf) {
-        /*  These terms were originally specified in arc
-            seconds.  In the interest of efficiency, we convert
-            them to degrees by dividing by 3600 and round to
-            nine significant digits, which is the maximum
-            precision of the single-precision floats used by
-            LSL.  */
-        list oterms = [
-            -1.30025833,
-            -0.000430555556,
-             0.555347222,
-            -0.0142722222,
-            -0.0693527778,
-            -0.0108472222,
-             0.00197777778,
-             0.00774166667,
-             0.00160833333,
-             0.000680555556
-        ];
-
-        //  Again, we evaluate a number specified as 23d26'21".448 as degrees
-        float eps = 23.4392911;
-        float u;
-        float v;
-        integer i;
-
-        v = u = ((jd - J2000) / (JulianCentury * 100)) + (jdf / (JulianCentury * 100));
-
-        if (llFabs(u) < 1.0) {
-            for (i = 0; i < 10; i++) {
-                eps += llList2Float(oterms, i) * v;
-                v *= u;
+        while (outside) {
+            float x1 = 1 - llFrand(2);
+            float x2 = 1 - llFrand(2);
+            if (((x1 * x1) + (x2 * x2)) < 1) {
+                outside = FALSE;
+                float x = 2 * x1 * llSqrt(1 - (x1 * x1) - (x2 * x2));
+                float y = 2 * x2 * llSqrt(1 - (x1 * x1) - (x2 * x2));
+                float z = 1 - 2 * ((x1 * x1) + (x2 * x2));
+                return < x, y, z >;
             }
         }
-        return eps;
-    }
-
-    /*  eqtoecliptic  --  Transform equatorial (right ascension and
-                          declination) to ecliptic (heliocentric
-                          latitude and longitide) co-ordinates.  */
-
-    list eqtoecliptic(integer jd, float jdf, float alpha, float delta) {
-        // Obliquity of the ecliptic
-        float eps = obliqeq(jd, jdf) * DEG_TO_RAD;
-
-        float lambda = llAtan2((llSin(alpha) * llCos(eps)) +
-                             (llTan(delta) * llSin(eps)),
-                             llCos(alpha));
-        float beta = (llSin(delta) * llCos(eps)) - (llCos(delta) * llSin(alpha));
-
-        return [ lambda, beta ];
-    }
-
-    //  sphRect  --  Convert spherical (L, B, R) co-ordinates to rectangular
-
-    vector sphRect(float l, float b, float r) {
-        return < r * llCos(b) * llCos(l),
-                 r * llCos(b) * llSin(l),
-                 r * llSin(b) >;
+        return ZERO_VECTOR;         // Can't happen, but idiot compiler errors otherwise
     }
 
     /*  rectSph  --  Convert rectangular co-ordinates to spherical.
@@ -344,9 +284,9 @@ vector m_colour = < 0.749, 0.745, 0.749 >;  // HACK--SPECIFY COLOUR IN planet LI
             vector lbr = rectSph(pos);
 
             legend = m_name +
-                     "\nLong " + eff(fixangr(lbr.x) * RAD_TO_DEG) + U_deg +
-                        " Lat " + eff(lbr.y * RAD_TO_DEG) + U_deg +
-                     "\nRV " + eff(lbr.z) + " AU" +
+                     "\nLong " + eff(fixangr(lbr.x) * RAD_TO_DEG) +
+                        "° Lat " + eff(lbr.y * RAD_TO_DEG) +
+                     "°\nRV " + eff(lbr.z) + " AU" +
                      "\nPos " + efv(pos);
             llSetLinkPrimitiveParamsFast(LINK_THIS, [
                 PRIM_TEXT, legend, <1, 1, 0>, 1
@@ -377,7 +317,6 @@ vector m_colour = < 0.749, 0.745, 0.749 >;  // HACK--SPECIFY COLOUR IN planet LI
 
         state_entry() {
             whoDat = owner = llGetOwner();
-            U_deg = llUnescapeURL("%C2%B0");            // U+00B0 Degree Sign
             llSetLinkPrimitiveParamsFast(LINK_THIS, [
                 PRIM_TEXT, "", ZERO_VECTOR, 0
             ]);
@@ -430,6 +369,17 @@ vector m_colour = < 0.749, 0.745, 0.749 >;  // HACK--SPECIFY COLOUR IN planet LI
                     //  ypres  --  Destroy mass
 
                     if (ccmd == ypres) {
+                        if (s_trails) {
+                            /*  If we've been littering the world with
+                                flPlotLine tracing our motion, clean them up
+                                now rather than waiting for the garbage
+                                collector to come around.  Note that since
+                                we are the deployer for these objects, they
+                                won't respond to a ypres message from the
+                                deployer which rezzed us.  */
+                            llRegionSay(massChannel,
+                                llList2Json(JSON_ARRAY, [ ypres ]));
+                        }
                         llDie();
 
                     //  COLLIDE  --  Handle collision with another mass
@@ -462,42 +412,20 @@ vector m_colour = < 0.749, 0.745, 0.749 >;  // HACK--SPECIFY COLOUR IN planet LI
                             m_name = llList2String(msg, 2);             // Name
                             deployerPos = sv(llList2String(msg, 3));    // Deployer position
                             m_scalePlanet = siuf(llList2String(msg, 4));    // Planet scale
-                            m_scaleStar =  siuf(llList2String(msg, 5)); // Star scale
-                            m_jd = llList2Integer(msg, 6);              // Epoch Julian day
-                            m_jdf = siuf(llList2String(msg, 7));        // Epoch Julian day fraction
 
                             //  Set properties of object
-                            float oscale = m_scalePlanet;
-                            if (m_index == 0) {
-                                oscale = m_scaleStar;
-                            }
 
                             //  Compute size of body based upon scale factor
 
-/*
-                            vector psize = < llList2Float(planet, 16),
-                                             llList2Float(planet, 15),
-                                             llList2Float(planet, 15) > * 0.0001 * oscale;
-*/
-vector psize = llList2Vector(llGetLinkPrimitiveParams(LINK_THIS, [ PRIM_SIZE ]), 0);
-psize *= 0.1;
-
-                            //  Calculate rotation to correctly orient north pole
-
-                            vector npole = llList2Vector(planet, 22);
-                            list npecl = eqtoecliptic(m_jd, m_jdf,
-                                npole.x * DEG_TO_RAD, npole.y * DEG_TO_RAD);
-                            vector npvec = sphRect(llList2Float(npecl, 0), llList2Float(npecl, 1), 1);
-                            rotation nprot = llRotBetween(<-1, 0, 0>, npvec);
-/* tawk("JD " + (string) m_jd + "  JDF " + (string) m_jdf +
-    "  obliqeq " + (string) obliqeq(m_jd, m_jdf) +
-    "  pole " + (string) sphRect(llList2Float(npecl, 0), llList2Float(npecl, 1), 1)); */
+                            vector psize = llList2Vector(llGetLinkPrimitiveParams(LINK_THIS,
+                                [ PRIM_SIZE ]), 0) * m_scalePlanet;
 
                             llSetLinkPrimitiveParamsFast(LINK_THIS, [
                                 PRIM_DESC,  llList2Json(JSON_ARRAY,
-                                    [ m_index, m_name, eff(llList2Float(planet, 17)) ]),
+                                    [ m_index, m_name ]),
                                 PRIM_SIZE, psize,           // Scale to proper size
-                                PRIM_ROTATION, nprot        // Rotate north pole to proper orientation
+                                // Start random rotation
+                                PRIM_OMEGA, randVec(), llFrand(PI_BY_TWO), 1
                             ]);
                             llSetStatus(STATUS_PHANTOM | STATUS_DIE_AT_EDGE, TRUE);
 
@@ -515,7 +443,6 @@ psize *= 0.1;
                             s_trace = llList2Integer(msg, 3);
                             s_kaboom = siuf(llList2String(msg, 4));
                             s_auscale = siuf(llList2String(msg, 5));
-                            s_radscale = siuf(llList2String(msg, 6));
                             s_trails = llList2Integer(msg, 7);
                             s_pwidth = siuf(llList2String(msg, 8));
                             s_mindist = siuf(llList2String(msg, 9));
@@ -565,6 +492,7 @@ if (s_trace) {
     tawk(m_name + ": Update pos from " + (string) p + " to " + (string) npos +
         " dist " + (string) dist);
 }
+                        //  If we've ventured too far, go kaboom
                         if ((s_kaboom > 0) & (rvec > s_kaboom)) {
                             kaboom();
                             return;
@@ -586,6 +514,7 @@ if (s_trace) {
             }
         }
 
+/*
         //  Toggle legend on touch
 
         touch_start(integer n) {
@@ -596,4 +525,5 @@ if (s_trace) {
                 ]);
             }
         }
+*/
      }
