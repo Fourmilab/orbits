@@ -785,6 +785,7 @@ ephCalcStart = llGetTime();
             //  AUscale n           Set astronomical unit scale
 
             if (abbrP(sparam, "au")) {
+tawk("SET AUSCALE deprecated.  Replace with Set AU.");
                 s_auscale = value;
                 changedSettings = TRUE;
 
@@ -900,6 +901,19 @@ ephCalcStart = llGetTime();
                     llSetTimerEvent(0);
                 }
                 changedSettings = TRUE;
+
+            //  Scale planet/star/au n     Scale of planets, stars, orbits
+
+            } else if (abbrP(sparam, "sc")) {
+                float factor = llList2Float(args, 3);
+                if (abbrP(svalue, "au")) {
+                    s_auscale = factor;
+                    changedSettings = TRUE;
+                } if (abbrP(svalue, "pl")) {
+                    m_scalePlanet = factor;
+                } else if (abbrP(svalue, "st")) {
+                    m_scaleStar = factor;
+                }
 
             //  Simrate n           Simulation rate (years/second)
 
