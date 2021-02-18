@@ -68,6 +68,7 @@
     string Collision = "Balloon Pop";   // Explosion sound clip
 
     vector deployerPos;                 // Deployer position
+    rotation polarRot;                  // Rotation of north pole
 
     key whoDat;                         // User with whom we're communicating
     integer paths;                      // Draw particle trail behind masses ?
@@ -354,7 +355,9 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
 
     /*  eqtoecliptic  --  Transform equatorial (right ascension and
                           declination) to ecliptic (heliocentric
-                          latitude and longitide) co-ordinates.  */
+                          latitude and longitide) co-ordinates.
+                          Note that the inputs and outputs of
+                          this function are in radians.  */
 
     list eqtoecliptic(integer jd, float jdf, float alpha, float delta) {
         // Obliquity of the ecliptic
@@ -363,7 +366,8 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
         float lambda = llAtan2((llSin(alpha) * llCos(eps)) +
                              (llTan(delta) * llSin(eps)),
                              llCos(alpha));
-        float beta = (llSin(delta) * llCos(eps)) - (llCos(delta) * llSin(alpha));
+        float beta = llAsin((llSin(delta) * llCos(eps)) -
+                            (llCos(delta) * llSin(eps) * llSin(alpha)));
 
         return [ lambda, beta ];
     }
@@ -609,13 +613,13 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
                             list npecl = eqtoecliptic(m_jd, m_jdf,
                                 npole.x * DEG_TO_RAD, npole.y * DEG_TO_RAD);
                             vector npvec = sphRect(llList2Float(npecl, 0), llList2Float(npecl, 1), 1);
-                            rotation nprot = llRotBetween(<-1, 0, 0>, npvec);
+                            polarRot = llRotBetween(<-1, 0, 0>, npvec);
 
                             llSetLinkPrimitiveParamsFast(LINK_THIS, [
                                 PRIM_DESC,  llList2Json(JSON_ARRAY,
                                     [ m_index, m_name, eff(llList2Float(planet, 17)) ]),
                                 PRIM_SIZE, psize,           // Scale to proper size
-                                PRIM_ROTATION, nprot        // Rotate north pole to proper orientation
+                                PRIM_ROTATION, polarRot     // Rotate north pole to proper orientation
                             ]);
                             llSetStatus(STATUS_PHANTOM | STATUS_DIE_AT_EDGE, TRUE);
 
@@ -688,8 +692,18 @@ if (s_trace) {
                                 flPlotLine(p, npos, m_colour, s_pwidth);
                             }
                         }
+
                         integer jd = llList2Integer(msg, 3);
                         float jdf = siuf(llList2String(msg, 4));
+
+//  Rotate planet so correct latitude is facing the Sun
+
+float gst = gmstx(jd, jdf);             // Hour angle at Greenwich
+float gangle = TWO_PI * (gst / 24);     // Rotation angle of prime meridian
+rotation grot = llEuler2Rot(< -gangle, 0, 0 >);
+llSetLinkPrimitiveParamsFast(LINK_THIS,
+    [ PRIM_ROTATION, grot * polarRot ]);
+
                         updateEarth(jd, jdf);
                         updateSat(jd, jdf, npos);
                     }
@@ -697,11 +711,12 @@ if (s_trace) {
             }
         }
 
-/*
 touch_start(integer n) {
+    llMessageLinked(LINK_ALL_CHILDREN, 9989, "Boo1", whoDat);
+/*
     updateEarth(2459259, 0.5);
     float gmst = gmstx(2446895, 0.5);
     tawk("GMST " + (string) gmst);
-}
 */
+}
      }

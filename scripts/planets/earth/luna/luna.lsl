@@ -278,7 +278,9 @@ vector m_colour = < 0.4, 0.4, 0.4 >;    // HACK--SPECIFY COLOUR IN planet LIST
 
     /*  eqtoecliptic  --  Transform equatorial (right ascension and
                           declination) to ecliptic (heliocentric
-                          latitude and longitide) co-ordinates.  */
+                          latitude and longitide) co-ordinates.
+                          Note that the inputs and outputs of
+                          this function are in radians.  */
 
     list eqtoecliptic(integer jd, float jdf, float alpha, float delta) {
         // Obliquity of the ecliptic
@@ -287,7 +289,8 @@ vector m_colour = < 0.4, 0.4, 0.4 >;    // HACK--SPECIFY COLOUR IN planet LIST
         float lambda = llAtan2((llSin(alpha) * llCos(eps)) +
                              (llTan(delta) * llSin(eps)),
                              llCos(alpha));
-        float beta = (llSin(delta) * llCos(eps)) - (llCos(delta) * llSin(alpha));
+        float beta = llAsin((llSin(delta) * llCos(eps)) -
+                            (llCos(delta) * llSin(eps) * llSin(alpha)));
 
         return [ lambda, beta ];
     }
@@ -297,7 +300,7 @@ vector m_colour = < 0.4, 0.4, 0.4 >;    // HACK--SPECIFY COLOUR IN planet LIST
                        degrees) and declination.  We must supply
                        the time of the conversion in order to
                        compensate correctly for the varying
-                       obliquity of the ecliptic over time.  */
+                       obliquity of the ecliptic over time.
 
     list ecliptoeq(float jd, float jdf, float Lambda, float Beta) {
 
@@ -313,6 +316,7 @@ vector m_colour = < 0.4, 0.4, 0.4 >;    // HACK--SPECIFY COLOUR IN planet LIST
                     (llSin(Beta) * llCos(eps))) * RAD_TO_DEG
                ];
     }
+*/
 
     /*  lowmoon  --  Low-precision calculation of the position
                      of the Moon. We return a list containing
@@ -376,9 +380,11 @@ vector m_colour = < 0.4, 0.4, 0.4 >;    // HACK--SPECIFY COLOUR IN planet LIST
 
         float Alm;                                      // Right ascension
         float Bem;                                      // Declination
+/*
         list ecql = ecliptoeq(jd, jdf, lm, bm);
         Alm = llList2Float(ecql, 0);
         Bem = llList2Float(ecql, 1);
+*/
 
         float Rh = (a * (1 - (e * e))) /           // Radius vector (km)
             (1 + (e * llCos(fixangle(Mpm + Ec) * DEG_TO_RAD)));
@@ -576,6 +582,37 @@ float s_satscale = 1.75e-6 * m_scalePlanet; // Scale factor, satellite orbit km 
 /*
 }
 */
+
+            //  HACK TO TEST COMPUTATIONS WHEN ROOT PRIM TOUCHED
+            } else if (num == 9989) {
+tawk("Root pos " + (string) llGetRootPosition() +
+     "\n  Root rot " + (string) (llRot2Euler(llGetRootRotation()) * RAD_TO_DEG) +
+     "\n  My pos " + (string) llList2Vector(llGetLinkPrimitiveParams(LINK_THIS, [ PRIM_POS_LOCAL ]), 0) +
+     "\n  My rot " + (string) (llRot2Euler(llList2Rot(llGetLinkPrimitiveParams(LINK_THIS, [ PRIM_ROT_LOCAL ]), 0)) * RAD_TO_DEG) +
+     "\n  My fwd " + (string) llRot2Fwd(llGetLocalRot())
+    );
+if (m_jd == 0) {
+    m_jd = 2459263;
+    m_jdf = 0.483310;
+}
+vector npole = llList2Vector(planet, 22);
+list npecl = eqtoecliptic(m_jd, m_jdf,
+    npole.x * DEG_TO_RAD, npole.y * DEG_TO_RAD);
+tawk("JD " + (string) m_jd + "  JDF " + (string) m_jdf +
+    "\n  obliqeq " + (string) obliqeq(m_jd, m_jdf) +
+    "\n  npecl " + (string) fixangle((llList2Float(npecl, 0)) * RAD_TO_DEG) + ", " + (string) (llList2Float(npecl, 1) * RAD_TO_DEG) +
+    "\n  pole " + (string) sphRect(llList2Float(npecl, 0), llList2Float(npecl, 1), 1));
+
+list eqt = eqtoecliptic(m_jd, m_jdf, 116.328942 * DEG_TO_RAD, 28.026103 * DEG_TO_RAD);
+tawk("eqtoecliptic test " + (string) (llList2Float(eqt, 0) * RAD_TO_DEG) + ", " + (string) (llList2Float(eqt, 1) * RAD_TO_DEG));
+
+
+
             }
         }
+/*
+touch_start(integer n) {
+
+}
+*/
      }

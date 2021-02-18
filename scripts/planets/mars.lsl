@@ -297,7 +297,9 @@ vector m_colour = < 0.902, 0.788, 0.3176 >; // HACK--SPECIFY COLOUR IN planet LI
 
     /*  eqtoecliptic  --  Transform equatorial (right ascension and
                           declination) to ecliptic (heliocentric
-                          latitude and longitide) co-ordinates.  */
+                          latitude and longitide) co-ordinates.
+                          Note that the inputs and outputs of
+                          this function are in radians.  */
 
     list eqtoecliptic(integer jd, float jdf, float alpha, float delta) {
         // Obliquity of the ecliptic
@@ -306,7 +308,8 @@ vector m_colour = < 0.902, 0.788, 0.3176 >; // HACK--SPECIFY COLOUR IN planet LI
         float lambda = llAtan2((llSin(alpha) * llCos(eps)) +
                              (llTan(delta) * llSin(eps)),
                              llCos(alpha));
-        float beta = (llSin(delta) * llCos(eps)) - (llCos(delta) * llSin(alpha));
+        float beta = llAsin((llSin(delta) * llCos(eps)) -
+                            (llCos(delta) * llSin(eps) * llSin(alpha)));
 
         return [ lambda, beta ];
     }
