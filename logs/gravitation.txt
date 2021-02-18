@@ -923,21 +923,164 @@ removed from Minor Planets.
 Cleaned up all of the dead code commented out and made obsolete by the
 re-organisation of the orbit and ellipse display mechanisms.
 
+Began the upgrade of the Earth model to be responsive to the date.
+Added code to process the Julian day included in the UPDATE message
+from the deployer, extract the Gregorian month, and set the texture
+for the Earth globe to the correct month from the inventory.  We
+also calculate the Greenwich Mean Sidereal Time (GMST) which, in
+conjunction with the position of the Earth (from the update) and
+deployer (provided by the PINIT message), we should be able to
+rotate the Earth so the proper hemisphere faces the Sun, but I shall
+defer such a tilt with rotation until I've gotten some shut-eye.
+
+Linked the Luna model to the Earth model as a sub-link, with the
+intention of setting its position based upon our lowmoon() calculation
+from the date in the UPDATE message.  This is not presently done.
+
+2021 February 15
+
+To make it simpler to initially position the Earth and Moon model, I
+moved the Moon child prim so it's coincident with the centre of the
+Earth.  This makes the centre of mass of the link set at the centre of
+the Earth, so the initial rez of the pair goes to the right place.
+(We don't worry about the Earth-Moon barycentre offset at this level
+of scale.)  You can still easily edit the embedded Moon using Edit
+linked and the Ctrl-, key to select it.
+
+This is just (yet another) reminder that if nothing seems to make any
+sense, your script is utterly unresponsive, and nothing you do seems to
+have any effect upon the situation, open the script that's vexing you
+in the editor and look at the "Running" and "Mono" check boxes at the
+bottom left (at least, that's where they are in Firestorm).  If they're
+not checked, your script is dead to the world and will do nothing.
+Editing and saving the script doesn't seem to change this. You have to
+check both boxes and then edit and save or reset the script to get it
+running.  The script may be disabled after a script error, and I've
+seen it happen after a turbulent region crossing in a vehicle, but in
+some cases it "just happens", probably as a result of linking
+operations.  When it does, it will drive you nuts until you figure out
+what is going on, so don't forget to check these two check boxes before
+they double cross you.
+
+Modified the Orbit command handler in Orbits to default the number
+of segments in an orbit plot to 48, not 96.  This is more than adequate
+now that we have the adaptive segment length handler.  It may be
+possible to reduce it further based upon experimentation.
+
+You can now specify a permanent orbit plot with the default number of
+segments with "Orbit <body> permanent": there's no need to specify a
+segment count.  You can still, of course, append the "permanent"
+modifier after a segment count.
+
+Updated the "flPlotLine Temporary" and "flPlotLine Permanent" objects
+in the deployer to use versions which are initially transparent.  This
+avoids the disturbing flash of the unmodified object if the script is
+slow to gain control and set the colour and length prescribed by the
+function in the script which created the line.
+
+Modified the Boot command to send the message to delete the entire
+model before resetting the scripts.  There's no point keeping a model
+around after a reset has caused them to forget everything about it.
+
+At a first and second glance, the code we're using to point the Earth's
+north pole at the right position in space look correct.  This will
+require more careful validation with other planets and verification
+that it doesn't mess up handling of axial rotation when we get to that.
+
+Changed the calls which create planet models from inventory in
+Gravitation from llRezObject() to llRezAtRoot().  This allows us to use
+planet models in which the centre of the root prim is not the computed
+centre of the link set, which we might want to do should we wish to
+initially arrange satellites of a model in a manner not entirely
+symmetrical around their primary.  Due to this problem, Earth's Moon is
+presently hidden inside the core of the planet until the link set is
+rezzed, but with the change this no longer need be done.
+
+2021 February 16
+
+Setting of scale factors of objects and orbits in Solar System was
+partly broken and the rest inconsistent.  Instead of using the
+originally intended "radscale" setting, they used separate
+m_scalePlanet and m_scaleStar values, which are communicated in the
+PINIT message, before SETTINGS are known to objects.  There was no way
+for the user to set these, however.  I added a new:
+    Set scale planet/star/au n
+command to set these and also the scale for astronomical units in
+plotting orbits, previously set by "Set AUscale", which is now
+deprecated, generates a warning, and will be removed after it is
+extirpated from all of the scripts.  The originally intended Set
+radscale, which is faithfully transmitted around everywhere in SETTINGS
+packets, is actually only used when initially scaling Numerical
+Integration and Galactic Centre masses based upon their mass.  I will
+eventually replace this with m_scalePlanet, but defer that until I next
+revisit that module.
+
+All of this was provoked by trying to figure out what the triaxial
+ellipsoid shape of the Comet model was lost when creating it.  This,
+of course, was due to our scaling the model too small and causing it
+to be limited to 0.01 metres in region co-ordinates.  I'll have to see
+how much bigger I need to make it to keep this from happening.
+
+After experimentation, I made the Comet model 50% larger in all three
+axes, which preserves its triaxial aspect when rezzed with the default
+Set scale planet 0.1 setting.
+
+The code we added on 2021-02-06 to forward the ypres message from the
+Mass and Source objects to s_trails objects they created was never
+ported to the Solar System planets, so their trails would persist until
+the next garbage collection.  Here is a log of integrating this code:
+    Comet
+    Asteroid
+    Earth
+
+Confirmed that setting up an omega rotation (PRIM_OMEGA) in the Comet
+object does not disturb the particle emission we use to generate the
+tail.  Consequently, I added a random omega rotation (just made up,
+since we know little about actual rotations other than the fact that
+the few we've seen do appear to be rotating) to the Asteroid and Comet
+models.  The axis and rate are chosen at random when the object is
+rezzed.
+
+2021 February 17
+
+From a preliminary test, it looks like the position of the Moon is
+correct with regard to the phases computed by Earth and Moon viewer.
+
+The reason (or at least one of the reasons) north pole alignment for
+Solar System bodies was wonky was that the eqtoecliptic() function,
+which appears in the script for each body, was completely wonky.  Its
+computation of the heliocentric longitude (alpha) was from Planet
+Right, but the heliocentric latitude was from the Bungle Nebula.  It
+neglected to multiply by the sine of the obliquity of the ecliptic in
+the second term, and then forgot to take the arcsin of the (wrong)
+difference.  Fixing these corrected the results to within single
+precision roundoff of those in the example from Meeus.  Once debugged
+in the Luna module, this, of course, needed to be propagated to each of
+the Solar System body scripts.
+
+Propagated the corrected eqtoecliptic() to all of the Solar System body
+models.  Jupiter and Saturn look much more reasonable now!
+
+Removed the computation of equatorial co-ordinates for Luna in the
+function lowmoon() and the support functions it required.  Since we
+need only the ecliptic co-ordinates, the equatorial co-ordinates were
+never used and just a waste of time and space.
+
 
 
 Earth:
-    Select correct texture for month.
     Orient side toward Sun based upon GMST.
 
         Moon
-            Compute position and display.
             Orient correct hemisphere toward Earth.
 
 Saturn:
     Check inclination and north pole orientation.
 
+Set labels on for Solar System planets.
 
-
+Set tick as alternative sim spec.  Any two suffice, shows all 3
+resulting.
 
 Set path length to set expiration time of path particles.
 
