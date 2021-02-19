@@ -394,6 +394,17 @@ vector m_colour = < 0.4118, 0.4039, 0.8078 >;   // HACK--SPECIFY COLOUR IN plane
                     //  ypres  --  Destroy mass
 
                     if (ccmd == ypres) {
+                        if (s_trails) {
+                            /*  If we've been littering the world with
+                                flPlotLine tracing our motion, clean them up
+                                now rather than waiting for the garbage
+                                collector to come around.  Note that since
+                                we are the deployer for these objects, they
+                                won't respond to a ypres message from the
+                                deployer which rezzed us.  */
+                            llRegionSay(massChannel,
+                                llList2Json(JSON_ARRAY, [ ypres ]));
+                        }
                         llDie();
 
                     //  COLLIDE  --  Handle collision with another mass
