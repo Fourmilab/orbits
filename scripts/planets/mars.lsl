@@ -322,6 +322,27 @@ vector m_colour = < 0.902, 0.788, 0.3176 >; // HACK--SPECIFY COLOUR IN planet LI
                  r * llSin(b) >;
     }
 
+    //  jdToMSD  --  Julian day and fraction to Mars Sol Date
+
+    list jdToMSD(list jdl) {
+        integer LEAP_SECOND_COUNT = 19;         // Current offset TAI - UTC
+        float MARTIAN_TIME_SLIP = 1.0274912517; // Ratio of Mars Sol to UTC day
+        integer jd = llList2Integer(jdl, 0);
+        float jdf = llList2Float(jdl, 1);
+
+        jd -=  2405522;             // Subtract integral offset
+        jdf = (jdf + (LEAP_SECOND_COUNT / 86400)) - 0.0025054 ;
+        float msdf = jd / MARTIAN_TIME_SLIP;
+        jdf /= MARTIAN_TIME_SLIP;
+        integer msdi = llFloor(msdf);
+        jdf += (msdf - msdi);
+        integer jdfi = llFloor(jdf);
+        msdi += jdfi;
+        jdf -= jdfi;
+
+        return [ msdi, jdf ];
+    }
+
     //  tawk  --  Send a message to the interacting user in chat
 
     tawk(string msg) {
@@ -394,6 +415,17 @@ vector m_colour = < 0.902, 0.788, 0.3176 >; // HACK--SPECIFY COLOUR IN planet LI
                     //  ypres  --  Destroy mass
 
                     if (ccmd == ypres) {
+                        if (s_trails) {
+                            /*  If we've been littering the world with
+                                flPlotLine tracing our motion, clean them up
+                                now rather than waiting for the garbage
+                                collector to come around.  Note that since
+                                we are the deployer for these objects, they
+                                won't respond to a ypres message from the
+                                deployer which rezzed us.  */
+                            llRegionSay(massChannel,
+                                llList2Json(JSON_ARRAY, [ ypres ]));
+                        }
                         llDie();
 
                     //  COLLIDE  --  Handle collision with another mass
@@ -530,4 +562,10 @@ if (s_trace) {
                 }
             }
         }
+
+/*
+touch_start(integer n) {
+    tawk("MSD = " + llList2CSV(jdToMSD([ 2459261, 0.0886458335 ])));
+}
+*/
      }
