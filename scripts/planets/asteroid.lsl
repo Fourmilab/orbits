@@ -448,10 +448,14 @@ vector m_colour = < 0.749, 0.745, 0.749 >;  // HACK--SPECIFY COLOUR IN planet LI
                             s_mindist = siuf(llList2String(msg, 9));
                             s_labels = llList2Integer(msg, 21);
 
-                            if ((!s_labels) && o_labels) {
-                                llSetLinkPrimitiveParamsFast(LINK_THIS, [
-                                    PRIM_TEXT, "", ZERO_VECTOR, 0
-                                ]);
+                            //  Update label if state has changed
+                            if (s_labels != o_labels) {
+                                if (s_labels) {
+                                    updateLegend((llGetPos() - deployerPos) / s_auscale);
+                                } else {
+                                    llSetLinkPrimitiveParamsFast(LINK_THIS, [
+                                        PRIM_TEXT, "", ZERO_VECTOR, 0 ]);
+                                }
                             }
                         }
 

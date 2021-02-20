@@ -63,6 +63,7 @@
     integer s_trails = TRUE;            // Plot orbital trails ?
     float s_pwidth = 0.01;              // Paths/trails width
     float s_mindist = 0.1;              // Minimum distance to move
+    integer s_labels = FALSE;           // Show floating text legend ?
 
     integer massChannel = -982449822;   // Channel for communicating with planets
     string ypres = "B?+:$$";            // It's pronounced "Wipers"
@@ -322,6 +323,39 @@ vector m_colour = < 1, 1, 1 >;          // HACK--SPECIFY COLOUR IN planet LIST
                  r * llSin(b) >;
     }
 
+    /*  rectSph  --  Convert rectangular co-ordinates to spherical.
+                     The spherical co-ordinates are returned in a
+                     vector <L, B, R> with angles in radians.  */
+
+    vector rectSph(vector rc) {
+        float r = llVecMag(rc);
+        return < llAtan2(rc.y, rc.x), llAsin(rc.z / r), r >;
+    }
+
+    //  fixangr  --  Range reduce an angle in radians
+
+    float fixangr(float a) {
+        return a - (TWO_PI * (llFloor(a / TWO_PI)));
+    }
+
+    //  updateLegend  --  Update floating text legend above body
+
+    updateLegend(vector pos) {
+        if (s_labels) {
+            string legend;
+            vector lbr = rectSph(pos);
+
+            legend = m_name +
+                     "\nLong " + eff(fixangr(lbr.x) * RAD_TO_DEG) +
+                        "° Lat " + eff(lbr.y * RAD_TO_DEG) +
+                     "°\nRV " + eff(lbr.z) + " AU" +
+                     "\nPos " + efv(pos);
+            llSetLinkPrimitiveParamsFast(LINK_THIS, [
+                PRIM_TEXT, legend, m_colour, 1
+            ]);
+        }
+    }
+
     //  tawk  --  Send a message to the interacting user in chat
 
     tawk(string msg) {
@@ -477,6 +511,8 @@ vector m_colour = < 1, 1, 1 >;          // HACK--SPECIFY COLOUR IN planet LIST
                     } else if (ccmd == "SETTINGS") {
                         integer bn = llList2Integer(msg, 1);
                         if ((bn == 0) || (bn == m_index)) {
+                            integer o_labels = s_labels;
+
                             paths = llList2Integer(msg, 2);
                             s_trace = llList2Integer(msg, 3);
                             s_kaboom = siuf(llList2String(msg, 4));
@@ -485,6 +521,17 @@ vector m_colour = < 1, 1, 1 >;          // HACK--SPECIFY COLOUR IN planet LIST
                             s_trails = llList2Integer(msg, 7);
                             s_pwidth = siuf(llList2String(msg, 8));
                             s_mindist = siuf(llList2String(msg, 9));
+                            s_labels = llList2Integer(msg, 21);
+
+                            //  Update label if state has changed
+                            if (s_labels != o_labels) {
+                                if (s_labels) {
+                                    updateLegend((llGetPos() - deployerPos) / s_auscale);
+                                } else {
+                                    llSetLinkPrimitiveParamsFast(LINK_THIS, [
+                                        PRIM_TEXT, "", ZERO_VECTOR, 0 ]);
+                                }
+                            }
                         }
 
                         if (initState == 2) {
@@ -537,6 +584,7 @@ if (s_trace) {
                                 flPlotLine(p, npos, m_colour, s_pwidth);
                             }
                         }
+                        updateLegend((npos - deployerPos) / s_auscale);
                     }
                 }
             }

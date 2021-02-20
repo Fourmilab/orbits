@@ -495,7 +495,7 @@ vector m_colour = < 0.749, 0.745, 0.749 >;  // HACK--SPECIFY COLOUR IN planet LI
                                     [ m_index, m_name ]),
                                 PRIM_SIZE, psize,           // Scale to proper size
                                 // Start random rotation
-                                PRIM_OMEGA, randVec(), llFrand(PI_BY_TWO), 1 
+                                PRIM_OMEGA, randVec(), llFrand(PI_BY_TWO), 1
                             ]);
                             llSetStatus(STATUS_PHANTOM | STATUS_DIE_AT_EDGE, TRUE);
 
@@ -518,10 +518,14 @@ vector m_colour = < 0.749, 0.745, 0.749 >;  // HACK--SPECIFY COLOUR IN planet LI
                             s_mindist = siuf(llList2String(msg, 9));
                             s_labels = llList2Integer(msg, 21);
 
-                            if ((!s_labels) && o_labels) {
-                                llSetLinkPrimitiveParamsFast(LINK_THIS, [
-                                    PRIM_TEXT, "", ZERO_VECTOR, 0
-                                ]);
+                            //  Update label if state has changed
+                            if (s_labels != o_labels) {
+                                if (s_labels) {
+                                    updateLegend((llGetPos() - deployerPos) / s_auscale);
+                                } else {
+                                    llSetLinkPrimitiveParamsFast(LINK_THIS, [
+                                        PRIM_TEXT, "", ZERO_VECTOR, 0 ]);
+                                }
                             }
                         }
 
