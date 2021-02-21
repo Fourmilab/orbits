@@ -68,12 +68,17 @@
     string Collision = "Balloon Pop";   // Explosion sound clip
 
     vector deployerPos;                 // Deployer position
-    rotation polarRot;                  // Rotation of north pole
+    rotation npRot;                     // Rotation of north pole
 
     key whoDat;                         // User with whom we're communicating
     integer paths;                      // Draw particle trail behind masses ?
 
 vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LIST
+
+    //  Link indiced within the object
+
+    integer lGlobe;                     // Planetary globe
+    integer lLuna;                      // Luna: satellite
 
     //  Link messages
 
@@ -81,6 +86,27 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
 
     integer LM_PS_DEPMSG = 811;         // Message from deployer
     integer LM_PS_UPDATE = 812;         // Update position and rotation
+
+    /*  Find a linked prim from its name.  Avoids having to slavishly
+        link prims in order in complex builds to reference them later
+        by link number.  You should only call this once, in state_entry(),
+        and then save the link numbers in global variables.  Returns the
+        prim number or -1 if no such prim was found.  Caution: if there
+        are more than one prim with the given name, the first will be
+        returned without warning of the duplication.  */
+
+    integer findLinkNumber(string pname) {
+        integer i = llGetLinkNumber() != 0;
+        integer n = llGetNumberOfPrims() + i;
+
+        for (; i < n; i++) {
+            if (llGetLinkName(i) == pname) {
+                return i;
+            }
+        }
+//tawk("Cannot find link " + pname + " in object.");
+        return -1;
+    }
 
     //  Destroy mass after collision or going out of range
 
@@ -129,7 +155,7 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
     //  tellSat  --  Forward deployer message to satellites
 
     tellSat(string message) {
-        llMessageLinked(LINK_ALL_CHILDREN, LM_PS_DEPMSG,
+        llMessageLinked(lLuna, LM_PS_DEPMSG,
             message, deployer);
 //tawk("Fwd: " + message);
     }
@@ -357,7 +383,7 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
                           declination) to ecliptic (heliocentric
                           latitude and longitide) co-ordinates.
                           Note that the inputs and outputs of
-                          this function are in radians.  */
+                          this function are in radians.  *_/
 
     list eqtoecliptic(integer jd, float jdf, float alpha, float delta) {
         // Obliquity of the ecliptic
@@ -378,6 +404,169 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
         return < r * llCos(b) * llCos(l),
                  r * llCos(b) * llSin(l),
                  r * llSin(b) >;
+    }
+
+
+    //  rotMeridian  --  Rotate prime meridian to correct location
+
+    rotation rotMeridian(vector npos, float hAngle) {
+        vector sunPos = llVecNorm(npos - deployerPos);
+        /*  Compute axis around which the body rotates.
+            This axis is defined by the vector from its
+            centre to the north pole.  *_/
+        vector raxis = < 1, 0, 0 > * npRot;
+        /*  The local Z axis (yes, I know, it doesn't make any
+            sense, but bear with me) defines the prime meridian.
+            This must be determined after applying to rotation
+            to align the north pole in space.  *_/
+        vector lfwd = llRot2Up(npRot);
+        /*  The cross product of the normalised vector from the
+            centre of the body to the centre of the primary (which,
+            since the satellite is a child of the link set of
+            which the primary is the root prim, is simply its local
+            co-ordinates) and the rotation axis gives the normal to
+            the plane defined by the rotation axis and the vector
+            to the primary, passing through its centre.  *_/
+        vector xnorm = raxis % llVecNorm(sunPos);
+        /*  Now, our task is to rotate the body around its
+            axis of rotation (raxis) so as to make the prime
+            meridian vector (lfwd) fall within the plane to
+            which xnorm is the normal.  The dot product of
+            these two vectors is the cosine of the angle
+            between them.  *_/
+        float tang = PI_BY_TWO - llAcos(lfwd * xnorm); // Angle from prime meridian to axis-primary plane
+        /*  The angle, tang, computed above, does not take into
+            account whether the prime meridian vector, projected
+            upon the line containing the centre of the satellite
+            and primary, is parallel or anti-parallel to the
+            vector from the centre of the satellite to the
+            primary.  We compute the angle between these two
+            vectors from their dot product, and then test
+            their direction using the magnitude of this angle.  *_/
+        float fpxa = fixangr(llAcos(lfwd * sunPos));
+        if (fpxa < PI_BY_TWO) {
+//            tang = -(PI + tang);
+//            tang = PI - tang;
+            tang = (PI - tang) - (PI_BY_TWO / 2);
+        }
+tawk("sunPos " + (string) sunPos + " lfwd " + (string) lfwd + " tang " + (string) (tang * RAD_TO_DEG) + " fpxa " + (string) (fpxa * RAD_TO_DEG) + " totrot " + (string) (llRot2Euler(npRot * llAxisAngle2Rot(raxis, tang)) * RAD_TO_DEG));
+        /*  Compose the prime meridian rotation with the
+            north pole alignment rotation to obtain the
+            complete satellite rotation.  *_/
+        return npRot * llAxisAngle2Rot(raxis, tang);
+    }
+*/
+
+    rotation rotHour(integer jd, float jdf) {
+        /*  Compute axis around which the body rotates.
+            This axis is defined by the vector from its
+            centre to the north pole.  */
+        vector raxis = < 1, 0, 0 > * npRot;
+float gst = gmstx(jd, jdf);             // Hour angle at Greenwich
+float gangle = TWO_PI * (gst / 24);     // Rotation angle of prime meridian
+        /*  Compose the prime meridian rotation with the
+            north pole alignment rotation to obtain the
+            complete satellite rotation.  */
+        return npRot * llAxisAngle2Rot(raxis, -gangle);
+    }
+
+    /*  rotPole  --  Rotate the north pole of the Globe to its
+                     correct orientation in space.  The planet
+                     list contains an item (22) which specifies
+                     the orientation of the body's north pole as
+                     a vector in which the .x component is the
+                     right ascension and the .y component the
+                     declination of the north pole's position on
+                     the celestial sphere, specified in equatorial
+                     co-ordinates, in degrees, at the epoch given
+                     by list item 0.  (The .z component of this
+                     vector is ignored.)
+
+                     We require the orientation of the north pole
+                     in heliocentric ecliptical space, which we
+                     obtain by first rotating the body about the
+                     global Y axis to tilt the pole to the specified
+                     declination, then rotating around the global
+                     Z axis to the azimuth specified by the right
+                     ascension.  At this point, we have the globe
+                     properly oriented in equatorial space.
+
+                     But, we're not done.  We require the orientation
+                     in ecliptic co-ordinates, so we must now tilt
+                     the globe along the global X axis, which is the
+                     plane of intersection between the ecliptic and
+                     the equatorial planes, aligned with the vector
+                     toward the March equinox.  Since the obliquity
+                     of the ecliptic varies with time, we require
+                     the Julian day and fraction of the epoch in order
+                     to perform this transformation.
+
+                     We do not actually rotate the globe here, but
+                     rather return the rotation computed to achieve
+                     the desired orientation.  */
+
+    rotation rotPole(integer jd, float jdf) {
+        rotation rpole = llEuler2Rot(<0, PI_BY_TWO, 0>);    // Globe initially rotated thus
+        float obleq = obliqeq(jd, jdf) * DEG_TO_RAD;    // Obliquity of the ecliptic
+        vector npoled = llList2Vector(planet, 22);      // North pole, degrees
+        vector npoler = npoled * DEG_TO_RAD;            // North pole, radians
+
+        //  Tilt to declination
+        if (npoled.y != 90) {       // Compare degrees to avoid round-off
+            rpole *= llAxisAngle2Rot(<0, 1, 0>, -npoler.y);
+        }
+
+        //  Rotate to right ascension
+        if (npoled.x != 0) {
+            rpole = llAxisAngle2Rot(<0, 0, 1>, npoler.x) * rpole;
+        }
+
+        //  Tilt from equatorial to ecliptic plane
+if (jd != 0) { // HACK FOR DEBUGGING
+        rpole = llAxisAngle2Rot(<1, 0, 1>, -obleq) * rpole;
+}
+
+        /*  Compute axis around which the body rotates.
+            This axis is defined by the vector from its
+            centre to the north pole.  */
+        vector raxis = < -1, 0, 0 > * rpole;
+        /*  The local Z axis (yes, I know, it doesn't make any
+            sense, but bear with me) defines the prime meridian.
+            This must be determined after applying to rotation
+            to align the north pole in space.  */
+        vector lfwd = llRot2Up(rpole);
+        /*  The cross product of the normalised vector from the
+            centre of the body to zero latitude in ecliptic
+            co-ordinates (its positive X axis) and the rotation
+            axis gives us the normal to the plane defined by
+            the rotation axis and zero latitude.  */
+        vector xnorm = raxis % < -1, 0, 0 >;
+        /*  Now, our task is to rotate the globe around its
+            axis of rotation (raxis) so as to make the prime
+            meridian vector (lfwd) fall within the plane to
+            which xnorm is the normal.  The dot product of
+            these two vectors is the cosine of the angle
+            between them.  */
+        float tang = PI_BY_TWO - llAcos(lfwd * xnorm); // Angle from prime meridian to axis-ecliptic meridian plane
+        /*  The angle, tang, computed above, does not take into
+            account whether the prime meridian vector, projected
+            upon the line containing the centre of the planet
+            and ecliptic origin, is parallel or anti-parallel to the
+            vector from the centre of the planet to the
+            origin.  We compute the angle between these two
+            vectors from their dot product, and then test
+            their direction using the magnitude of this angle.  */
+        float fpxa = llAcos(lfwd * < -1, 0, 0 >);
+        if (fpxa < PI_BY_TWO) {
+            tang = -(PI + tang);
+        }
+tawk("raxis " + (string) raxis + " lfwd " + (string) lfwd + " xnorm " + (string) xnorm + " tang " + (string) (tang * RAD_TO_DEG) + " fpxa " + (string) (fpxa * RAD_TO_DEG) + " totrot " + (string) (llRot2Euler(rpole * llAxisAngle2Rot(raxis, tang)) * RAD_TO_DEG));
+        /*  Compose the prime meridian rotation with the
+            north pole alignment rotation to obtain the
+            complete satellite rotation.  */
+        rpole = rpole * llAxisAngle2Rot(raxis, tang);
+
+        return rpole;
     }
 
     /*  jyearl  --  Convert Julian date/time list to year, month, day,
@@ -435,11 +624,11 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
     /*  GMSTX  --  Calculate Greenwich Mean Sidereal Time for a
                    given instant expressed as a Julian date and
                    fraction.  We use a less general expression
-                   than in Earth and Moon Viewer because it
-                   yields more accurate results when computed in
+                   than in C language Earth and Moon Viewer because
+                   it yields more accurate results when computed in
                    the single-precision floating point of LSL.  */
 
-    float gmstx(float jd, float jdf) {
+    float gmstx(integer jd, float jdf) {
         /*  See simplified formula in:
                 https://aa.usno.navy.mil/faq/docs/GAST.php  */
         float D = (jd - 2451545) + jdf;
@@ -460,7 +649,7 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
         list yymmdd = jyearl([ jd, jdf ]);
         if (llList2Integer(yymmdd, 1) != currentMonth) {
             currentMonth = llList2Integer(yymmdd, 1);
-            llSetLinkPrimitiveParamsFast(LINK_THIS,
+            llSetLinkPrimitiveParamsFast(lGlobe,
                 [ PRIM_TEXTURE, ALL_SIDES,
                   "Earth_Day_" + llGetSubString("0" +
                     (string) currentMonth, -2, -1),
@@ -471,12 +660,45 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
     //  updateSat  --  Update satellites of planet
 
     updateSat(integer jd, float jdf, vector npos) {
-        llMessageLinked(LINK_ALL_CHILDREN, LM_PS_UPDATE,
+        llMessageLinked(lLuna, LM_PS_UPDATE,
                         llList2Json(JSON_ARRAY,
                             [ jd,               // 0,1  Julian day and fraction
                               fuis(jdf),
                               fv(npos)          // 2    New position of planet
                             ]), deployer);
+    }
+
+    /*  rectSph  --  Convert rectangular co-ordinates to spherical.
+                     The spherical co-ordinates are returned in a
+                     vector <L, B, R> with angles in radians.  */
+
+    vector rectSph(vector rc) {
+        float r = llVecMag(rc);
+        return < llAtan2(rc.y, rc.x), llAsin(rc.z / r), r >;
+    }
+
+    //  fixangr  --  Range reduce an angle in radians
+
+    float fixangr(float a) {
+        return a - (TWO_PI * (llFloor(a / TWO_PI)));
+    }
+
+    //  updateLegend  --  Update floating text legend above body
+
+    updateLegend(vector pos) {
+        if (s_labels) {
+            string legend;
+            vector lbr = rectSph(pos);
+
+            legend = m_name +
+                     "\nLong " + eff(fixangr(lbr.x) * RAD_TO_DEG) +
+                        "° Lat " + eff(lbr.y * RAD_TO_DEG) +
+                     "°\nRV " + eff(lbr.z) + " AU" +
+                     "\nPos " + efv(pos);
+            llSetLinkPrimitiveParamsFast(lGlobe, [
+                PRIM_TEXT, legend, m_colour, 1
+            ]);
+        }
     }
 
     //  tawk  --  Send a message to the interacting user in chat
@@ -498,10 +720,44 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
         }
     }
 
+/*
+//  FIXANGLE  --  Range reduce an angle in degrees
+
+float fixangle(float a) {
+    return a - (360.0 * llFloor(a / 360.0));
+}
+
+/*  ECLIPTOEQ  --  Convert celestial (ecliptical) longitude
+                   and latitude into right ascension (in
+                   degrees) and declination.  We must supply
+                   the time of the conversion in order to
+                   compensate correctly for the varying
+                   obliquity of the ecliptic over time. *_/
+
+list ecliptoeq(float jd, float jdf, float Lambda, float Beta) {
+
+    // Obliquity of the ecliptic
+    float eps = obliqeq(jd, jdf) * DEG_TO_RAD;
+
+    Lambda *= DEG_TO_RAD;
+    Beta *= DEG_TO_RAD;
+    return [
+        fixangle(llAtan2((llCos(eps) * llSin(Lambda) -
+                (llTan(Beta) * llSin(eps))), llCos(Lambda)) * RAD_TO_DEG),
+            llAsin((llSin(eps) * llSin(Lambda) * llCos(Beta)) +
+                (llSin(Beta) * llCos(eps))) * RAD_TO_DEG
+           ];
+}
+*/
+
     default {
 
         state_entry() {
             whoDat = owner = llGetOwner();
+
+            //  Find link indices within this link set by name
+            lGlobe = findLinkNumber("Globe");
+            lLuna = findLinkNumber("Luna");
         }
 
         on_rez(integer start_param) {
@@ -551,6 +807,7 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
                     //  ypres  --  Destroy mass
 
                     if (ccmd == ypres) {
+                        tellSat(message);
                         if (s_trails) {
                             /*  If we've been littering the world with
                                 flPlotLine tracing our motion, clean them up
@@ -561,6 +818,7 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
                                 deployer which rezzed us.  */
                             llRegionSay(massChannel,
                                 llList2Json(JSON_ARRAY, [ ypres ]));
+                            llSleep(0.25);
                         }
                         llDie();
 
@@ -608,18 +866,26 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
                                              llList2Float(planet, 15) > * 0.0001 * oscale;
 
                             //  Calculate rotation to correctly orient north pole
-
+/*
                             vector npole = llList2Vector(planet, 22);
                             list npecl = eqtoecliptic(m_jd, m_jdf,
                                 npole.x * DEG_TO_RAD, npole.y * DEG_TO_RAD);
                             vector npvec = sphRect(llList2Float(npecl, 0), llList2Float(npecl, 1), 1);
-                            polarRot = llRotBetween(<-1, 0, 0>, npvec);
+                            npRot = llRotBetween(<-1, 0, 0>, npvec);
+*/
+                            npRot = rotPole(m_jd, m_jdf);
 
+                            //  Set identity of body container
                             llSetLinkPrimitiveParamsFast(LINK_THIS, [
                                 PRIM_DESC,  llList2Json(JSON_ARRAY,
-                                    [ m_index, m_name, eff(llList2Float(planet, 17)) ]),
+                                    [ m_index, m_name, eff(llList2Float(planet, 17)) ])
+, PRIM_ROTATION, ZERO_ROTATION    // TAKE OUT INITIAL ROTATION OF LEGACY REZ CODE
+                            ]);
+
+                            //  Set scale and orientation of globe
+                            llSetLinkPrimitiveParamsFast(lGlobe, [
                                 PRIM_SIZE, psize,           // Scale to proper size
-                                PRIM_ROTATION, polarRot     // Rotate north pole to proper orientation
+                                PRIM_ROT_LOCAL, npRot       // Rotate north pole to proper orientation
                             ]);
                             llSetStatus(STATUS_PHANTOM | STATUS_DIE_AT_EDGE, TRUE);
 
@@ -632,6 +898,8 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
                     } else if (ccmd == "SETTINGS") {
                         integer bn = llList2Integer(msg, 1);
                         if ((bn == 0) || (bn == m_index)) {
+                            integer o_labels = s_labels;
+
                             paths = llList2Integer(msg, 2);
                             s_trace = llList2Integer(msg, 3);
                             s_kaboom = siuf(llList2String(msg, 4));
@@ -639,7 +907,18 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
                             s_trails = llList2Integer(msg, 7);
                             s_pwidth = siuf(llList2String(msg, 8));
                             s_mindist = siuf(llList2String(msg, 9));
+                            s_labels = llList2Integer(msg, 21);
                             tellSat(message);
+
+                            //  Update label if state has changed
+                            if (s_labels != o_labels) {
+                                if (s_labels) {
+                                    updateLegend((llGetPos() - deployerPos) / s_auscale);
+                                } else {
+                                    llSetLinkPrimitiveParamsFast(lGlobe, [
+                                        PRIM_TEXT, "", ZERO_VECTOR, 0 ]);
+                                }
+                            }
                         }
 
                         if (initState == 2) {
@@ -672,6 +951,9 @@ vector m_colour = < 0.847, 0.451, 0.2784 >; // HACK--SPECIFY COLOUR IN planet LI
                         vector p = llGetPos();
                         vector npos = sv(llList2String(msg, 2));
                         float dist = llVecDist(p, npos);
+
+                        integer jd = llList2Integer(msg, 3);
+                        float jdf = siuf(llList2String(msg, 4));
 if (s_trace) {
     tawk(m_name + ": Update pos from " + (string) p + " to " + (string) npos +
         " dist " + (string) dist);
@@ -684,35 +966,51 @@ if (s_trace) {
                         if (dist >= s_mindist) {
                             llSetLinkPrimitiveParamsFast(LINK_THIS,
                                 [ PRIM_POSITION, npos ]);
-                            if (paths) {
-                                llSetLinkPrimitiveParamsFast(LINK_THIS,
-                                    [ PRIM_ROTATION, llRotBetween(<0, 0, 1>, (npos - p)) ]);
-                            }
+//                            if (paths) {
+//                                llSetLinkPrimitiveParamsFast(LINK_THIS,
+//                                    [ PRIM_ROTATION, llRotBetween(<0, 0, 1>, (npos - p)) ]);
+//                            }
                             if (s_trails) {
                                 flPlotLine(p, npos, m_colour, s_pwidth);
                             }
                         }
+                        llSetLinkPrimitiveParamsFast(lGlobe, [
+                            PRIM_ROT_LOCAL, rotHour(jd, jdf)
+                        ]);
 
-                        integer jd = llList2Integer(msg, 3);
-                        float jdf = siuf(llList2String(msg, 4));
-
-//  Rotate planet so correct latitude is facing the Sun
-
-float gst = gmstx(jd, jdf);             // Hour angle at Greenwich
-float gangle = TWO_PI * (gst / 24);     // Rotation angle of prime meridian
-rotation grot = llEuler2Rot(< -gangle, 0, 0 >);
-llSetLinkPrimitiveParamsFast(LINK_THIS,
-    [ PRIM_ROTATION, grot * polarRot ]);
-
-                        updateEarth(jd, jdf);
-                        updateSat(jd, jdf, npos);
+                        updateLegend((npos - deployerPos) / s_auscale);
+                        updateEarth(jd, jdf);       // Update globe texture if month has changed
+                        updateSat(jd, jdf, npos);   // Update position and rotation of the Moon
                     }
                 }
             }
         }
 
 touch_start(integer n) {
-    llMessageLinked(LINK_ALL_CHILDREN, 9989, "Boo1", whoDat);
+/*
+rotation r = llList2Rot(llGetLinkPrimitiveParams(lGlobe, [ PRIM_ROT_LOCAL ]), 0);
+if (r == ZERO_ROTATION) {
+rotation qr = rotPole(0, 0);
+llSetLinkPrimitiveParamsFast(lGlobe, [ PRIM_ROT_LOCAL, qr ]);
+tawk("Rot to pole");
+} else {
+    llSetLinkPrimitiveParamsFast(lGlobe, [ PRIM_ROT_LOCAL, ZERO_ROTATION ]);
+tawk("Rot zero");
+}
+*/
+/*
+integer ajd = 2459265;  float ajdf = 0.5;
+vector npole = llList2Vector(planet, 22);
+list npecl = eqtoecliptic(ajd, ajdf,
+    npole.x * DEG_TO_RAD, npole.y * DEG_TO_RAD);
+list req = ecliptoeq(ajd, ajdf, llList2Float(npecl, 1) * RAD_TO_DEG, llList2Float(npecl, 0) * RAD_TO_DEG);
+vector npvec = sphRect(llList2Float(npecl, 0), llList2Float(npecl, 1), 1);
+tawk("npvec " + (string) npole + " npecl " + (string) (llList2Float(npecl, 0) * RAD_TO_DEG) +
+    ", " + (string) (llList2Float(npecl, 1) * RAD_TO_DEG) + " npvec " + (string) npvec +
+    "  req " + (string) llList2Float(req, 0) + ", " + (string) llList2Float(req, 1));
+*/
+
+//    llMessageLinked(lLuna, 9989, "Boo1", whoDat);
 /*
     updateEarth(2459259, 0.5);
     float gmst = gmstx(2446895, 0.5);
