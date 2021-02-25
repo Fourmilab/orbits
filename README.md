@@ -2,6 +2,16 @@
 
 ![Fourmilab Orbits](marketplace/images/orbits_1.png)
 
+**BEWARE!  This software is under active development.  Components
+contain bugs, unimplemented and partially-implemented features,
+diagnostic and debug code, and are subject to incompatible changes
+at any time.  This repository is intended to serve as a backup
+and archive of my development repository, and while you're welcome
+to use any code you find here (subject to the terms of LICENSE.md),
+be aware that it may not have been adequately tested or, indeed,
+work at all.  When the product is released to the Second Life
+Marketplace, this disclaimer will be removed.**
+
 [Fourmilab Orbits](https://marketplace.secondlife.com/p/Fourmilab-Orbits/????????)
 is a model of three kinds of astronomical systems for the Second
 Life virtual world.  The models include:
