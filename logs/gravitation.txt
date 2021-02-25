@@ -1029,9 +1029,9 @@ The code we added on 2021-02-06 to forward the ypres message from the
 Mass and Source objects to s_trails objects they created was never
 ported to the Solar System planets, so their trails would persist until
 the next garbage collection.  Here is a log of integrating this code:
-    Comet
-    Asteroid
-    Earth
+    Comet Asteroid Earth Mars Mercury Venus Jupiter Saturn Uranus
+    Neptune Pluto
+Note that the Sun never makes trails.
 
 Confirmed that setting up an omega rotation (PRIM_OMEGA) in the Comet
 object does not disturb the particle emission we use to generate the
@@ -1066,6 +1066,276 @@ function lowmoon() and the support functions it required.  Since we
 need only the ecliptic co-ordinates, the equatorial co-ordinates were
 never used and just a waste of time and space.
 
+2021 February 18
+
+Added a jdToMSD() function in the Solar System Mars planet script to
+convert a Julian day and fraction derived from Earth UTC to the
+corresponding Mars Sol Day according to the procedure:
+    https://en.wikipedia.org/wiki/Timekeeping_on_Mars#Formulas_to_compute_MSD_and_MTC
+Note that getting this to the second requires knowing the current
+offset in seconds from TAI (atomic clock time) and UTC due to leap
+seconds.  This cannot be computed, as it is entirely empirical based
+upon measurements of the Earth's rotation and the priesthood of
+timekeeping.  It is set by LEAP_SECOND_COUNT in the code, which is 19
+seconds as of today.  In practice, LSL single precision round-off is
+greater than errors due to several seconds' discrepancy in this value,
+and precision to the second is supererogatory when all we need to do is
+put the meridian in an orientation that "looks right".
+
+2021 February 19
+
+After performing the appropriate rituals at the Temple of the Triple
+Product and sacrificing a unit quarternion at the shrine of William
+Rowan Hamilton, I think I have a function which will correctly manage
+updating the rotation of a satellite which is tidally locked to its
+primary.  The pathfinder for this is Luna (Earth's Moon), whose script
+includes the function tidalLock(), which is called with the updated
+local position of the satellite and uses its previously-computed (and
+invariant) north pole orientation (npRot) as a hidden argument. Since
+satellites are child prims of link sets whose root prim is the primary
+they orbit, there is no need to pass the location of the primary, as
+their local positions are already relative to it.
+
+The function computes the rotation around the axis defined by the
+centre of the satellite and its north pole which causes the vector from
+the satellite's centre through its prime meridian to fall within the
+plane defined by the rotation axis and the centre of the primary. This
+is complicated, as usual, by the need to keep track of which side of
+the plane the meridian vector is starting from and adjust the direction
+of the rotation accordingly.  The result is the complete rotation for
+the satellite, consisting of the north pole orientation rotation
+composed with the axial spin to align the meridian.  We assume, as is
+the case for all tidally locked satellites in the solar system, that
+the prime meridian has been defined as the point which is (more or
+less, neglecting orbital eccentricity, etc.) fixed in the direction of
+the primary.  If this be not the case, it's a simple matter to compose
+a fixed offset with this vector to adjust to the desired meridian.
+
+Got "Set paths lines" working for Luna: the code should carry over for
+other satellites.  This is a bit more tricky than for a main body,
+since we need to transform the satellite co-ordinates in local space to
+region co-ordinates and cope with the motion of the primary body
+(bringing the satellite with it).  Each trail segment is plotted from
+the end of the previous one to the satellite's new position, taking
+into account all of these motions.
+
+Added code to propagate the ypres message from Earth to Luna so it can
+clean up any trail lines it has created.  Earth needs to wait 250
+milliseconds between sending the message and committing its llDie()
+lest it destroy the satellite script before it gets a chance to clean
+up its debris.
+
+2021 February 20
+
+By comparison with the JPL HORIZONS service, our calculation of
+heliocentric longitude, latitude, and rectangular co-ordinates are
+correct (or, at least the same conventions as they use).  In particular,
+the heliocentric longitude for a body at the March equinox is 180
+degrees and its position falls along the -X axis.  This is also
+consistent with the presentation by Solar System Live for views from
+heliocentric latitude 90 degrees.
+
+Integrated the "Set label" support code in all Solar System bodies and,
+while I was at it, fixed the SETTINGS message handler to the label
+appears as soon as it is enabled instead of waiting for the next UPDATE
+message.
+
+Implemented a major revision to how planets with satellites work which,
+after getting over the speed bumps, should dramatically simplify how
+they work and eliminate a great deal of confusion in the scripts that
+run them.  Previously, the primary (planet) was the root link of the
+link set, contained the main script that talks to the deployer, and
+passed on updates to satellites, which were its child prims.  This had
+the huge disadvantage that, while moving the planet along its orbit
+correctly moved the satellited with it, any other change in orientation
+of the planet (pointing its north pole at the correct location in
+space, rotating around its axis every planetary day, etc.) would also
+carry all of the satellites along with it, and require us to take out
+the undesired rotation on every update of the primary and satellites.
+This was not only ugly, complicated, and slow in terms of API calls, it
+could result in jerky motion of the satellites as they were first moved
+to unwanted locations by rotation of the primary, then moved back to
+where the belong by their own scripts.  Even more horrible, there was
+the possibility of synchronisation problems between the updating by
+the main and satellite scripts if script performance was slow and
+messages got backed up.
+
+To avoid all (well, most) of this mess, I restructured planets with
+satellites as follows.  Each has a hidden object with the name of the
+planet (for example, "S: Earth") which contains the main script for
+the planet and all of the textures, auxiliary objects such as the line
+plotting prims for flPlotLine(), etc.  This is the root prim of the
+link set, but in normal circumstances remains invisible to the user
+(it can be shown for debugging by editing the texture).  It contains
+child prims including one called "Globe", which is the displayed
+globe of the planet and ones for every satellite.  The link numbers for
+these are found using our findLinkNumber() function from their names,
+so no assumptions are made about link numbers.
+
+The root prim is moved to move the planet and satellites around their
+orbit, but it is never rotated: it always retains its original zero
+rotation.  Any rotation of the globe is done by a local rotation to the
+Globe child prim, which affects only it and does not interfere with
+the satellites.  The satellites, in turn, are updated based on their
+relative position to the primary and do not need to take into account
+any rotations applied to the Globe, as it is now simply a peer child
+prim, not their root prim.
+
+The new planet structure appears to be working, albeit with the wrong
+computation of north pole and hour angle, but manipulation of the
+Globe no longer interacts with updating of the Moon, which is working
+correctly.
+
+2021 February 21
+
+Removed unnecessary backing-out of primary rotation in Luna.  Since the
+primary now always has a rotation of zero, it did no harm, but wasted
+time and was potentially confusing.
+
+To test by stepping at the sidereal rate use:
+    Set steprate set 23.934469h
+This will, of course, experience round-off over time thanks to single
+precision arithmetic.
+
+Using the Earth and Moon as the pathfinder, completed the initial
+implementation and deployment of a "complex planet".  Although in some
+ways the Earth and Moon is more complex than most (its rotation must be
+synchronised to Greenwich Mean Sidereal Time computed from the epoch,
+and a special evaluator is used to compute the position of the Moon as
+opposed to standard orbital elements), it is not a completely general
+case in that the Earth's north pole is coincident with the Z axis of
+the equatorial co-ordinate system and it may be possible that something
+in the general transformation from equatorial to ecliptic may be
+backwards or otherwise messed up.
+
+2021 February 22
+
+Built our second "complex planet", Jupiter, along the lines of the
+Earth, but with the four Galilean satellites, using Io as our
+pathfinder to debug the satellite motion.  As expected, the
+nontrivial north pole orientation of Jupiter smoked out a pullulating
+horde of bugs from the roach motel which was rotPole() in the planet
+script.  With these fixed, it was time to move on to Io's orbit.
+
+I originally adapted the Io script from the Luna script for Earth's
+Moon and, after testing it with completely bogus orbit code for Luna,
+moved on to computing its orbit from the orbital elements, then ran
+out of time and had to move on to non-productive paperword courtesy
+of coercive government.
+
+2021 February 24
+
+Derivation of the Gaussian gravitational constant for an arbitrary
+central mass is as follows.  In general,
+    k = sqrt(G M)
+where G is:
+    6.6743e11 m^3 / kg s^2
+To convert to units for solar system astronomy, we wish to use:
+    AU = 1.4959787e+11 m
+    Msun = 1.98892e30 kg
+    day = 86400 s
+so we compute:
+    k = sqrt(G M AU^-3 day*2)
+which can be done in Units Calculator as:
+    sqrt(G sunmass ( 1 / au^3) day^2)
+yielding:
+    0.017202099
+radians per day for a body orbiting the Sun at one astronomical
+unit.
+
+For our planetary satellite systems, we wish to work in units of
+kilometres instead of astronomical units, but we continue to use
+days.  We substitute in the mass of the planet in the same kg
+units we used for the Sun.  For Jupiter, as an example:
+    km = 1000 m
+    Mjup = 1.8982e27 kg
+with Units Calculator:
+    sqrt(G (1.8982e27 kg) ( 1 / (1000 m)^3) day^2)
+yielding:
+    9.7249547e+08
+(I enter the mass of Jupiter as a number because Units Calculator's
+"jupitermass" has a slightly different value than the currently
+accepted standard.)
+
+This value should produce correct results for satellites orbiting
+Jupiter whose semi-major axis is specified in kilometres.
+
+Substituted in the computed value for k into gKepler of the Io script
+and---cazart---it works!  (At least based upon preliminary testing.)
+Now it's a matter of making all of this cleaner and more portable
+across different planets.
+
+Completed the first draft of the new model of Jupiter for the Solar
+System.  This will serve as the pathfinder for the other giant planets
+with satellites.  Jupiter's north pole position is now correct (I'm
+pretty sure), and implemented in a general way we can use for other
+planets.  The same goes for rotation, which is synchronised with the
+equatorial rotation speed but makes no attempt to align a "prime
+meridian" (which doesn't exist for these giant planets), or do anything
+about differential rotation by latitude.
+
+The four satellites have scripts which differ only by the orbit and
+physical parameters declared in the planets[] list at the top.  Since
+all of these satellites are tidally locked, they use the tidalLock()
+function developed for Luna.
+
+All of the orbit computation is based upon the GM value for the planet,
+which is declared in its planet[] list.  We use GM because for many
+solar system bodies the product GM, which can be determined by the
+orbits of satellites, is known better than its factors G and M
+separately.  To adapt for a different planet, all that should need to
+be changed is the GM value.
+
+2021 February 25
+
+Added an archive of all of the textures used in Solar System planet and
+satellite models to the Git archive in the directory textures/planets
+with subdirectories for each body.
+
+The one thing that's clear after getting Jupiter's satellites working
+is just how hideous the scaling problems are going to be for a
+pleasing display that fits into a tractable space for most people while
+trying to preserve some semblance of being a scale model.  Our
+compromises so far have worked reasonably well, allowing all of the
+planets to be to scale (but with the Sun at 1/5 its scale) and orbits
+to scale, albeit with planets and orbits to very different scales.
+
+The introduction of satellites throws a huge monkey wrench into this:
+at this scale Callisto is orbiting so far from Jupiter it almost hits
+Jupiter's orbit on the far side of the solar system.  I am going to
+have to spend some time thinking about approaches to this, but I'm
+going to defer it until I do Saturn, which is probably going to make
+things even worse, and Uranus, which is going to get the Z axis into
+the game with its wonky inclination and satellite orbits.
+
+This thing is becoming sufficiently big and complicated that I'm
+uncomfortable having it based entirely upon a single Git repository,
+and the size of the texture files, now incorporated within the
+repository, make it unwieldy to back up wholesale with flashback.  I
+created an archival repository on GitHub:
+    orbits
+with access URLs:
+    HTTPS: https://github.com/Fourmilab/orbits.git
+    SSH:   git@github.com:Fourmilab/orbits.git
+
+Linked the local repository to the GitHub archive:
+    git remote add origin git@github.com:Fourmilab/orbits.git
+
+Added a disclaimer to README.md about the development status of the
+code.
+
+Confirmed that my local "git sync" command works with the remote
+repository.
+
+
+
+
+
+
+Re-test set paths (particles) for Solar System.  It may work better
+now that we've de-coupled rotation from the root prim.  We could even
+have a special particle emitter prim, but that would be costly compared
+to its worth.
 
 
 Earth:
