@@ -1,0 +1,8 @@
+
+https://astrogeology.usgs.gov/search/map/Venus/Magellan/Venus_Magellan_C3-MDIR_Global_Mosaic_2025m
+
+https://astrogeology.usgs.gov/search/map/Venus/Magellan/Colorized/Venus_Magellan_C3-MDIR_Colorized_Global_Mosaic_4641m
+
+https://astrogeology.usgs.gov/search/map/Venus/Magellan/RadarProperties/Colorized/Venus_Magellan_C3-MDIR_ClrTopo_Global_Mosaic_6600m
+https://astropedia.astrogeology.usgs.gov/download/Venus/Magellan/RadarProperties/Colorized/Ancillary/Venus_Magellan_C3-MDIR_ClrTopo_Legend.png  (Bad file)
+

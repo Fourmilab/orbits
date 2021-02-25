@@ -1,0 +1,11 @@
+
+https://www.ngdc.noaa.gov/mgg/global/global.html
+
+Download page:
+
+https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/image/
+
+Image:
+
+https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/image/color_etopo1_ice_full.tif.gz
+

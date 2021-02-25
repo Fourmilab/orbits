@@ -1,0 +1,9 @@
+
+http://stevealbers.net/albers/sos/sos.html
+	https://www.flickr.com/photos/10795027@N08/43023455582/
+	ftp://public.sos.noaa.gov/astronomy/titan/radar_swaths/4k_trans.png
+
+https://sos.noaa.gov/datasets/titan-saturns-moon-colorized/
+    ftp://public.sos.noaa.gov/astronomy/titan/color/
+
+
