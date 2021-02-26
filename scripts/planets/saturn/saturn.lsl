@@ -39,7 +39,13 @@
         0.4400231,          // 21 Sidereal rotation period, days
         <40.589, 83.537, 0>,// 22 North pole, RA, Dec
         26.73,              // 23 Axial inclination, degrees
-        0.499               // 24 Albedo
+        0.499,              // 24 Albedo
+
+        //  Extras
+        0.0,                // 25 Fractional part of epoch
+        1.32712440018e20,   /* 26 Standard gravitational parameter (G M)
+                                  of primary, m^3/sec^2  */
+        <0.00588, 0.3176, 0.5647>   // 27 Colour of trail tracing orbit
     ];
 
     string ourName;                     // Our object name
@@ -52,15 +58,14 @@
     integer m_index;                    // Our mass index
     string m_name;                      // Name
     float m_scalePlanet;                // Planet scale
-    float m_scaleStar;                  // Star scale
     integer m_jd;                       // Epoch Julian day
     float m_jdf;                        // Epoch Julian day fraction
+    list rotEpoch;                      // Base epoch for rotation
 
     //  Settings communicated by deployer
     float s_kaboom = 50;                // Self destruct if this far (AU) from deployer
-    float s_auscale = 0.2;              // Astronomical unit scale
-    float s_radscale = 0.0000025;       // Radius scale
-    integer s_trails = TRUE;            // Plot orbital trails ?
+    float s_auscale = 0.3;              // Astronomical unit scale
+    integer s_trails = FALSE;           // Plot orbital trails ?
     float s_pwidth = 0.01;              // Paths/trails width
     float s_mindist = 0.1;              // Minimum distance to move
     integer s_labels = FALSE;           // Show floating text legend ?
@@ -70,15 +75,46 @@
     string Collision = "Balloon Pop";   // Explosion sound clip
 
     vector deployerPos;                 // Deployer position (centre of cage)
+    rotation npRot;                     // Rotation of north pole
 
     key whoDat;                         // User with whom we're communicating
     integer paths;                      // Draw particle trail behind masses ?
 
-vector m_colour = < 0.00588, 0.3176, 0.5647 >;  // HACK--SPECIFY COLOUR IN planet LIST
+    //  Link indiced within the object
+
+    integer lGlobe;                     // Planetary globe
+    integer lRings;                     // Ring system
 
     //  Link messages
 
+    //  Planetary satellite message
+
+    integer LM_PS_DEPMSG = 811;         // Message from deployer
+    integer LM_PS_UPDATE = 812;         // Update position and rotation
+
+    //  Planet component messages
+
     integer LM_PL_PINIT = 531;          // Initialisation parameters (forward to ring system)
+
+    /*  Find a linked prim from its name.  Avoids having to slavishly
+        link prims in order in complex builds to reference them later
+        by link number.  You should only call this once, in state_entry(),
+        and then save the link numbers in global variables.  Returns the
+        prim number or -1 if no such prim was found.  Caution: if there
+        are more than one prim with the given name, the first will be
+        returned without warning of the duplication.  */
+
+    integer findLinkNumber(string pname) {
+        integer i = llGetLinkNumber() != 0;
+        integer n = llGetNumberOfPrims() + i;
+
+        for (; i < n; i++) {
+            if (llGetLinkName(i) == pname) {
+                return i;
+            }
+        }
+        return -1;
+    }
 
     //  Destroy mass after collision or going out of range
 
@@ -90,8 +126,8 @@ vector m_colour = < 0.00588, 0.3176, 0.5647 >;  // HACK--SPECIFY COLOUR IN plane
 
             PSYS_SRC_BURST_RADIUS, 0.05,
 
-            PSYS_PART_START_COLOR, m_colour,
-            PSYS_PART_END_COLOR, m_colour,
+            PSYS_PART_START_COLOR,llList2Vector(planet, 27),
+            PSYS_PART_END_COLOR,llList2Vector(planet, 27),
 
             PSYS_PART_START_ALPHA, 0.9,
             PSYS_PART_END_ALPHA, 0.0,
@@ -122,6 +158,62 @@ vector m_colour = < 0.00588, 0.3176, 0.5647 >;  // HACK--SPECIFY COLOUR IN plane
 
         llSleep(1);         // Need to wait to allow particles and sound to play
         llDie();
+    }
+
+    //  tellSat  --  Forward deployer message to satellites
+
+    tellSat(string message) {
+        llMessageLinked(LINK_ALL_CHILDREN, LM_PS_DEPMSG,
+            message, deployer);
+    }
+
+    /*  fuis  --  Float union to base64-encoded integer
+                  Designed and implemented by Strife Onizuka:
+                    http://wiki.secondlife.com/wiki/User:Strife_Onizuka/Float_Functions  */
+
+/*
+    string fv(vector v) {
+        return fuis(v.x) + fuis(v.y) + fuis(v.z);
+    }
+
+    string fr(rotation r) {
+        return fuis(r.x) + fuis(r.y) + fuis(r.z) + fuis(r.s);
+    }
+*/
+
+    string fuis(float a) {
+        //  Detect the sign on zero.  It's ugly, but it gets you there
+        //  integer b = 0x80000000 & ~llSubStringIndex(llList2CSV([a]), "-");   // Sign
+        /*  Test for negative number, ignoring the difference between
+            +0 and -0.  While this does not preserve floating point
+            numbers bit-for-bit, it doesn't make any difference in
+            our calculations and is almost three times faster than
+            the original code above.  */
+        integer b = 0;
+        if (a < 0) {
+            b = 0x80000000;
+        }
+
+        if (a) {        // Is it greater than or less than zero ?
+            //  Denormalized range check and last stride of normalized range
+            if ((a = llFabs(a)) < 2.3509887016445750159374730744445e-38) {
+                b = b | (integer) (a / 1.4012984643248170709237295832899e-45);   // Math overlaps; saves CPU time
+            //  We never need to transmit infinity, so save the time testing for it.
+            // } else if (a > 3.4028234663852885981170418348452e+38) { // Round up to infinity
+            //     b = b | 0x7F800000;                                 // Positive or negative infinity
+            } else if (a > 1.4012984643248170709237295832899e-45) { // It should at this point, except if it's NaN
+                integer c = ~-llFloor(llLog(a) * 1.4426950408889634073599246810019);
+                //  Extremes will error towards extremes. The following corrects it
+                b = b | (0x7FFFFF & (integer) (a * (0x1000000 >> c))) |
+                        ((126 + (c = ((integer) a - (3 <= (a *= llPow(2, -c))))) + c) * 0x800000);
+                //  The previous requires a lot of unwinding to understand
+            } else {
+                //  NaN time!  We have no way to tell NaNs apart so pick one arbitrarily
+                b = b | 0x7FC00000;
+            }
+        }
+
+        return llGetSubString(llIntegerToBase64(b), 0, 5);
     }
 
     /*  siuf  --  Base64 encoded integer to float
@@ -260,10 +352,9 @@ vector m_colour = < 0.00588, 0.3176, 0.5647 >;  // HACK--SPECIFY COLOUR IN plane
                      the obliquity, which happens to be almost
                      precisely the mean.  */
 
-    float J2000 = 2451545.0;            // Julian day of J2000 epoch
     float JulianCentury = 36525.0;      // Days in Julian century
 
-    float obliqeq(float jd, float jdf) {
+    float obliqeq(integer jd, float jdf) {
         /*  These terms were originally specified in arc
             seconds.  In the interest of efficiency, we convert
             them to degrees by dividing by 3600 and round to
@@ -289,7 +380,7 @@ vector m_colour = < 0.00588, 0.3176, 0.5647 >;  // HACK--SPECIFY COLOUR IN plane
         float v;
         integer i;
 
-        v = u = ((jd - J2000) / (JulianCentury * 100)) + (jdf / (JulianCentury * 100));
+        v = u = ((jd - 2451545) / (JulianCentury * 100)) + (jdf / (JulianCentury * 100));
 
         if (llFabs(u) < 1.0) {
             for (i = 0; i < 10; i++) {
@@ -300,31 +391,117 @@ vector m_colour = < 0.00588, 0.3176, 0.5647 >;  // HACK--SPECIFY COLOUR IN plane
         return eps;
     }
 
-    /*  eqtoecliptic  --  Transform equatorial (right ascension and
-                          declination) to ecliptic (heliocentric
-                          latitude and longitide) co-ordinates.
-                          Note that the inputs and outputs of
-                          this function are in radians.  */
+    /*  rotHour  --  Compute a rotation to align the Globe
+                     so the subsolar point is aligned based
+                     on the current time.  */
 
-    list eqtoecliptic(integer jd, float jdf, float alpha, float delta) {
-        // Obliquity of the ecliptic
-        float eps = obliqeq(jd, jdf) * DEG_TO_RAD;
-
-        float lambda = llAtan2((llSin(alpha) * llCos(eps)) +
-                             (llTan(delta) * llSin(eps)),
-                             llCos(alpha));
-        float beta = llAsin((llSin(delta) * llCos(eps)) -
-                            (llCos(delta) * llSin(eps) * llSin(alpha)));
-
-        return [ lambda, beta ];
+    rotation rotHour(integer jd, float jdf) {
+        /*  Compute axis around which the body rotates.
+            This axis is defined by the vector from its
+            centre to the north pole.  */
+        vector raxis = < 1, 0, 0 > * npRot;
+        /*  Compute rotation angle from the elapsed time
+            since the start of the rotation epoch and the
+            rotation period in days.  */
+        float jde = (jd - llList2Integer(rotEpoch, 0)) +
+                    (jdf - llList2Float(rotEpoch, 1));
+        float gangle = fixangr(TWO_PI * (jde / llList2Float(planet, 21)));
+        /*  Compose the prime meridian rotation with the
+            north pole alignment rotation to obtain the
+            complete satellite rotation.  */
+        return npRot * llAxisAngle2Rot(raxis, -gangle);
     }
 
-    //  sphRect  --  Convert spherical (L, B, R) co-ordinates to rectangular
+    /*  rotPole  --  Rotate the north pole of the Globe to its
+                     correct orientation in space.  The planet
+                     list contains an item (22) which specifies
+                     the orientation of the body's north pole as
+                     a vector in which the .x component is the
+                     right ascension and the .y component the
+                     declination of the north pole's position on
+                     the celestial sphere, specified in equatorial
+                     co-ordinates, in degrees, at the epoch given
+                     by list item 0.  (The .z component of this
+                     vector is ignored.)
 
-    vector sphRect(float l, float b, float r) {
-        return < r * llCos(b) * llCos(l),
-                 r * llCos(b) * llSin(l),
-                 r * llSin(b) >;
+                     We require the orientation of the north pole
+                     in heliocentric ecliptical space, which we
+                     obtain by first rotating the body about the
+                     global Y axis to tilt the pole to the specified
+                     declination, then rotating around the global
+                     Z axis to the azimuth specified by the right
+                     ascension.  At this point, we have the globe
+                     properly oriented in equatorial space.
+
+                     But, we're not done.  We require the orientation
+                     in ecliptic co-ordinates, so we must now tilt
+                     the globe along the global X axis, which is the
+                     plane of intersection between the ecliptic and
+                     the equatorial planes, aligned with the vector
+                     toward the March equinox.  Since the obliquity
+                     of the ecliptic varies with time, we require
+                     the Julian day and fraction of the epoch in order
+                     to perform this transformation.
+
+                     We do not actually rotate the globe here, but
+                     rather return the rotation computed to achieve
+                     the desired orientation.  */
+
+    rotation rotPole(integer jd, float jdf) {
+        float obleq = obliqeq(jd, jdf) * DEG_TO_RAD;    // Obliquity of the ecliptic
+        vector npoled = llList2Vector(planet, 22);      // North pole, degrees
+        vector npoler = npoled * DEG_TO_RAD;            // North pole, radians
+//tawk("npoler " + (string) npoler);
+        //  Tilt to declination
+        rotation rpole = llEuler2Rot(<0, PI - npoler.y, 0>);
+
+        //  Rotate to right ascension
+        rpole = rpole * llEuler2Rot(<0, 0, npoler.x>);
+
+        //  Tilt from equatorial to ecliptic plane
+        rpole = rpole * llEuler2Rot(<-obleq, 0, 0>);
+
+        /*  Compute axis around which the body rotates.
+            This axis is defined by the vector from its
+            centre to the north pole.  */
+        vector raxis = < -1, 0, 0 > * rpole;
+        /*  The local Z axis (yes, I know, it doesn't make any
+            sense, but bear with me) defines the prime meridian.
+            This must be determined after applying to rotation
+            to align the north pole in space.  */
+        vector lfwd = llRot2Up(rpole);
+        /*  The cross product of the normalised vector from the
+            centre of the body to zero latitude in ecliptic
+            co-ordinates (its positive X axis) and the rotation
+            axis gives us the normal to the plane defined by
+            the rotation axis and zero latitude.  */
+        vector xnorm = raxis % < -1, 0, 0 >;
+        /*  Now, our task is to rotate the globe around its
+            axis of rotation (raxis) so as to make the prime
+            meridian vector (lfwd) fall within the plane to
+            which xnorm is the normal.  The dot product of
+            these two vectors is the cosine of the angle
+            between them.  */
+        float tang = PI_BY_TWO - llAcos(lfwd * xnorm); // Angle from prime meridian to axis-ecliptic meridian plane
+        /*  The angle, tang, computed above, does not take into
+            account whether the prime meridian vector, projected
+            upon the line containing the centre of the planet
+            and ecliptic origin, is parallel or anti-parallel to the
+            vector from the centre of the planet to the
+            origin.  We compute the angle between these two
+            vectors from their dot product, and then test
+            their direction using the magnitude of this angle.  */
+        float fpxa = llAcos(lfwd * < -1, 0, 0 >);
+        if (fpxa < PI_BY_TWO) {
+            tang = -(PI + tang);
+        }
+//tawk("raxis " + (string) raxis + " lfwd " + (string) lfwd + " xnorm " + (string) xnorm + " tang " + (string) (tang * RAD_TO_DEG) + " fpxa " + (string) (fpxa * RAD_TO_DEG) + " totrot " + (string) (llRot2Euler(rpole * llAxisAngle2Rot(raxis, tang)) * RAD_TO_DEG));
+        /*  Compose the prime meridian rotation with the
+            north pole alignment rotation to obtain the
+            complete planet rotation.  */
+        rpole = rpole * llAxisAngle2Rot(raxis, tang);
+//tawk("rpole " + (string) (llRot2Euler(rpole) * RAD_TO_DEG));
+        return rpole;
     }
 
     /*  rectSph  --  Convert rectangular co-ordinates to spherical.
@@ -354,10 +531,19 @@ vector m_colour = < 0.00588, 0.3176, 0.5647 >;  // HACK--SPECIFY COLOUR IN plane
                         "° Lat " + eff(lbr.y * RAD_TO_DEG) +
                      "°\nRV " + eff(lbr.z) + " AU" +
                      "\nPos " + efv(pos);
-            llSetLinkPrimitiveParamsFast(LINK_THIS, [
-                PRIM_TEXT, legend, m_colour, 1
+            llSetLinkPrimitiveParamsFast(lGlobe, [
+                PRIM_TEXT, legend,llList2Vector(planet, 27), 1
             ]);
         }
+    }
+
+    //  updateSat  --  Update satellites of planet
+
+    updateSat(integer jd, float jdf) {
+        llMessageLinked(LINK_ALL_CHILDREN, LM_PS_UPDATE,
+                        llList2Json(JSON_ARRAY,
+                            [ jd, fuis(jdf)     // 0,1  Julian day and fraction
+                            ]), deployer);
     }
 
     //  tawk  --  Send a message to the interacting user in chat
@@ -383,7 +569,11 @@ vector m_colour = < 0.00588, 0.3176, 0.5647 >;  // HACK--SPECIFY COLOUR IN plane
 
         state_entry() {
             whoDat = owner = llGetOwner();
-        }
+
+            //  Find link indices within this link set by name
+            lGlobe = findLinkNumber("Globe");
+            lRings = findLinkNumber("Saturn: ring system");
+       }
 
         on_rez(integer start_param) {
             initState = 0;
@@ -442,6 +632,8 @@ vector m_colour = < 0.00588, 0.3176, 0.5647 >;  // HACK--SPECIFY COLOUR IN plane
                                 deployer which rezzed us.  */
                             llRegionSay(massChannel,
                                 llList2Json(JSON_ARRAY, [ ypres ]));
+                            tellSat(message);
+                            llSleep(0.25);      // Give satellites a chance to clean up
                         }
                         llDie();
 
@@ -475,19 +667,16 @@ vector m_colour = < 0.00588, 0.3176, 0.5647 >;  // HACK--SPECIFY COLOUR IN plane
                             m_name = llList2String(msg, 2);             // Name
                             deployerPos = sv(llList2String(msg, 3));    // Deployer position
                             m_scalePlanet = siuf(llList2String(msg, 4));    // Planet scale
-                            m_scaleStar =  siuf(llList2String(msg, 5)); // Star scale
                             m_jd = llList2Integer(msg, 6);              // Epoch Julian day
                             m_jdf = siuf(llList2String(msg, 7));        // Epoch Julian day fraction
+                            rotEpoch = [ m_jd, m_jdf ];                 // Base epoch for rotation
 
                             //  Forward the message to the ring system
-                            llMessageLinked(LINK_ALL_OTHERS, LM_PL_PINIT,
+                            llMessageLinked(lRings, LM_PL_PINIT,
                                 message, id);
 
                             //  Set properties of object
                             float oscale = m_scalePlanet;
-                            if (m_index == 0) {
-                                oscale = m_scaleStar;
-                            }
 
                             //  Compute size of body based upon scale factor
 
@@ -497,20 +686,32 @@ vector m_colour = < 0.00588, 0.3176, 0.5647 >;  // HACK--SPECIFY COLOUR IN plane
 
                             //  Calculate rotation to correctly orient north pole
 
-                            vector npole = llList2Vector(planet, 22);
-                            list npecl = eqtoecliptic(m_jd, m_jdf,
-                                npole.x * DEG_TO_RAD, npole.y * DEG_TO_RAD);
-                            vector npvec = sphRect(llList2Float(npecl, 0), llList2Float(npecl, 1), 1);
-                            rotation nprot = llRotBetween(<-1, 0, 0>, npvec);
+                            npRot = rotPole(m_jd, m_jdf);
 
+                            //  Set identity of body container
                             llSetLinkPrimitiveParamsFast(LINK_THIS, [
                                 PRIM_DESC,  llList2Json(JSON_ARRAY,
-                                    [ m_index, m_name, eff(llList2Float(planet, 17)) ]),
+                                    [ m_index, m_name, eff(llList2Float(planet, 17)) ])
+, PRIM_ROTATION, ZERO_ROTATION    // TAKE OUT INITIAL ROTATION OF LEGACY REZ CODE
+                            ]);
+
+
+                            //  Set scale and orientation of globe
+                            llSetLinkPrimitiveParamsFast(lGlobe, [
                                 PRIM_SIZE, psize,           // Scale to proper size
-                                PRIM_ROTATION, nprot        // Rotate north pole to proper orientation
+                                PRIM_ROT_LOCAL, npRot       // Rotate north pole to proper orientation
+                            ]);
+                            /*  Set the north pole orientation of the rings.
+                                The rings have been created with their plane
+                                normal to the pole of Saturn and hence must
+                                be rotated before aligning with the pole.  */
+                            rotation eqRot = llEuler2Rot(<0, PI_BY_TWO, 0>) * npRot;
+                            llSetLinkPrimitiveParamsFast(lRings, [
+                                PRIM_ROT_LOCAL, eqRot
                             ]);
                             llSetStatus(STATUS_PHANTOM | STATUS_DIE_AT_EDGE, TRUE);
 
+                            tellSat(message);
                             initState = 2;                  // INIT received, waiting for SETTINGS
                         }
 
@@ -525,11 +726,11 @@ vector m_colour = < 0.00588, 0.3176, 0.5647 >;  // HACK--SPECIFY COLOUR IN plane
                             s_trace = llList2Integer(msg, 3);
                             s_kaboom = siuf(llList2String(msg, 4));
                             s_auscale = siuf(llList2String(msg, 5));
-                            s_radscale = siuf(llList2String(msg, 6));
                             s_trails = llList2Integer(msg, 7);
                             s_pwidth = siuf(llList2String(msg, 8));
                             s_mindist = siuf(llList2String(msg, 9));
                             s_labels = llList2Integer(msg, 21);
+                            tellSat(message);
 
                             //  Update label if state has changed
                             if (s_labels != o_labels) {
@@ -553,8 +754,8 @@ vector m_colour = < 0.00588, 0.3176, 0.5647 >;  // HACK--SPECIFY COLOUR IN plane
                                   PSYS_PART_INTERP_COLOR_MASK |
                                   PSYS_PART_RIBBON_MASK,
                                   PSYS_SRC_PATTERN, PSYS_SRC_PATTERN_DROP,
-                                  PSYS_PART_START_COLOR, m_colour,
-                                  PSYS_PART_END_COLOR, m_colour,
+                                  PSYS_PART_START_COLOR,llList2Vector(planet, 27),
+                                  PSYS_PART_END_COLOR,llList2Vector(planet, 27),
                                   PSYS_PART_START_SCALE, <0.75, 0.75, 1>,
                                   PSYS_PART_END_SCALE, <0.75, 0.75, 1>,
                                   PSYS_SRC_MAX_AGE, 0,
@@ -566,12 +767,15 @@ vector m_colour = < 0.00588, 0.3176, 0.5647 >;  // HACK--SPECIFY COLOUR IN plane
                             llParticleSystem([ ]);
                         }
 
-                    //  UPDATE  --  Update mass position
+                    //  UPDATE  --  Update planet position
 
                     } else if (ccmd == "UPDATE") {
                         vector p = llGetPos();
                         vector npos = sv(llList2String(msg, 2));
                         float dist = llVecDist(p, npos);
+
+                        integer jd = llList2Integer(msg, 3);
+                        float jdf = siuf(llList2String(msg, 4));
 if (s_trace) {
     tawk(m_name + ": Update pos from " + (string) p + " to " + (string) npos +
         " dist " + (string) dist);
@@ -584,15 +788,21 @@ if (s_trace) {
                         if (dist >= s_mindist) {
                             llSetLinkPrimitiveParamsFast(LINK_THIS,
                                 [ PRIM_POSITION, npos ]);
-                            if (paths) {
-                                llSetLinkPrimitiveParamsFast(LINK_THIS,
-                                    [ PRIM_ROTATION, llRotBetween(<0, 0, 1>, (npos - p)) ]);
-                            }
+//                            if (paths) {
+//                                llSetLinkPrimitiveParamsFast(LINK_THIS,
+//                                    [ PRIM_ROTATION, llRotBetween(<0, 0, 1>, (npos - p)) ]);
+//                            }
                             if (s_trails) {
-                                flPlotLine(p, npos, m_colour, s_pwidth);
+                                flPlotLine(p, npos,llList2Vector(planet, 27), s_pwidth);
                             }
                         }
+                        //  Rotate globe.  We don't rotate rings since you can't notice
+                        llSetLinkPrimitiveParamsFast(lGlobe, [
+                            PRIM_ROT_LOCAL, rotHour(jd, jdf)
+                        ]);
+
                         updateLegend((npos - deployerPos) / s_auscale);
+                        updateSat(jd, jdf);     // Update position and rotation of satellites
                     }
                 }
             }
