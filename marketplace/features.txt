@@ -1,0 +1,9 @@
+Scale model simulation of Solar System with planets and large moons
+
+Real-time positions or animated motion
+
+Simulation of stars orbiting the Milky Way's central black hole
+
+Numerical integration modeling of arbitrary gravitating systems
+
+Computes positions and tracks orbits of asteroids and comets

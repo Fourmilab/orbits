@@ -1,0 +1,20 @@
+Fourmilab Orbits provides models of three astronomical systems with a unified user interface.  It includes a scale model of our solar system, with all planets and their larger moons.  Analytical planetary theory and orbital elements are used to compute positions of bodies and display them either in real time or for any date in the past or future: motion may be animated at any rate you wish.  High-resolution textures are provided for all planets and their main satellites.
+
+Comets and asteroids can be tracked by specifying their orbital elements as published by the NASA Jet Propulsion Laboratory and other sources.  Orbits may be plotted and, for elliptical orbits, visualised as an ellipse fit to the orbit.
+
+A separate model is provided for the central region of the Milky Way galaxy, with the central black hole and stars orbiting it based upon the most recently published observations.  This model can be animated to demonstrate the rapid and complex motion at the heart of the galaxy, and orbits may be traced and plotted as for the solar system model.
+
+Finally, a numerical integration simulator is included which allows modeling the motion of an arbitrary set of masses under the influence of their mutual gravitation.  Objects are specified by mass and initial velocity, and then evolve according to Newton's laws of gravitation and motion.  Models are included to demonstrate the proper motion of stars in the Sun's neighbourhood, solar system orbits based upon first principles of gravitation, and chaotic motion in dense star clusters.
+
+All models can be specified and operated either by chat commands or through a flexible scripting system which reads commands from notecards.  Users can develop their own models and share them with others.
+
+Land impact depends upon the model chosen and the number of bodies modeled.  A complete model of the solar system with all planets and moons displayed has a land impact of 39.   A model of just the Sun and planets as distant as Mars has a land impact of 10.  You can set the scale factors for orbits and object sizes to adjust for the size of your parcel or where you wish to install the model(s); all objects are “phantom” so they will not collide with other objects.
+
+All components are delivered with full permissions (copy, modify, and transfer) including all scripts embedded in objects.  A development kit is included, providing all textures and sound effects used in the model.  Complete source code, developed using the Literate Programming methodology, is available from GitHub at https://github.com/Fourmilab/orbits .
+
+License
+
+This product (software, documents, images, and original models) is licensed under a Creative Commons Attribution-ShareAlike 4.0 International License.
+    http://creativecommons.org/licenses/by-sa/4.0/
+    https://creativecommons.org/licenses/by-sa/4.0/legalcode
+You are free to copy and redistribute this material in any medium or format, and to remix, transform, and build upon the material for any purpose, including commercially.  You must give credit, provide a link to the license, and indicate if changes were made.  If you remix, transform, or build upon this material, you must distribute your contributions under the same license as the original.

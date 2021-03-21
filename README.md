@@ -1,6 +1,6 @@
 # Fourmilab Orbits
 
-![Fourmilab Orbits](marketplace/images/orbits_1.png)
+![Fourmilab Orbits](marketplace/images/orbits_solsys.png)
 
 **BEWARE!  This software is under active development.  Components
 contain bugs, unimplemented and partially-implemented features,
@@ -12,9 +12,11 @@ be aware that it may not have been adequately tested or, indeed,
 work at all.  When the product is released to the Second Life
 Marketplace, this disclaimer will be removed.**
 
-[Fourmilab Orbits](https://marketplace.secondlife.com/p/Fourmilab-Orbits/????????)
+[Fourmilab Orbits](https://marketplace.secondlife.com/p/Fourmilab-Orbits/21573286)
 is a model of three kinds of astronomical systems for the Second
 Life virtual world.  The models include:
+
+![Fourmilab Orbits](marketplace/images/orbits_saturn.png)
 
 * Bodies in the solar system, including planets, major satellites,
 and minor planets (asteroids and comets) specified by their orbital
@@ -22,11 +24,15 @@ elements in a variety of public databases.  Models of planets and
 moons are included, allowing deployment of authentic scale models
 of the solar system.
 
+![Fourmilab Orbits](marketplace/images/orbits_numint.png)
+
 * Arbitrary n-body systems of masses evolving in space according to
 Newtonian gravitation, computed through numerical integration.  A
 model of the solar system based upon the Jet Propulsion Laboratory's
 state vector is included, demonstrating the stability of our solar
 system.
+
+![Fourmilab Orbits](marketplace/images/orbits_galcent.png)
 
 * Objects (infrared sources) orbiting the central black hole of the
 Milky Way Galaxy, based upon the most recent published data.
@@ -42,10 +48,8 @@ notecards, and development documentation, tools, and resources
 used the model and its development.  The actual model is built
 within Second Life and these components are installed within it.
 
-![Fourmilab Orbits](marketplace/images/orbits_2.png)
-
 The
-[complete package](https://marketplace.secondlife.com/p/https://marketplace.secondlife.com/p/Fourmilab-Orbits/????????)
+[complete package](https://marketplace.secondlife.com/p/Fourmilab-Orbits/21573286)
 is available for free in the Second Life Marketplace.  This
 repository contains everything in the model (except the prims,
 which are objects built within Second Life), plus additional
