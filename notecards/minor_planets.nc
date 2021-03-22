@@ -11,7 +11,7 @@
 #   This is not intended to be run as a script, but rather as
 #   a source for cutting and pasting into test cases and directly
 #   into chat to run examples, but nothing bad will happen if you
-#   do, for some reason, run it as a script.
+#   should, for some reason, run it as a script.
 
 Asteroid "1 Ceres" t 2458600.5 a 2.769165148633284 e 0.0760090265983052 i 10.59406719506626 w 73.59769469844186 node 80.30553090445737 M 77.37209751948711 H 3.40 G 0.12
 

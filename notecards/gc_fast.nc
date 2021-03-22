@@ -2,7 +2,7 @@
 #   Objects in the centre of the Milky Way galaxy
 
 Set kaboom 5000
-Set auscale 0.002
+Set scale AU 0.002
 
 Set labels on
 

@@ -1327,6 +1327,28 @@ code.
 Confirmed that my local "git sync" command works with the remote
 repository.
 
+2021 February 26
+
+Included the texture image for each Solar System body in its model.
+We also include the textures in the development kit, but this makes
+them easier to find should the models become separated or re-used in
+other builds.
+
+Created models for the moons of Uranus: Miranda, Ariel, Umbriel,
+Titania, and Oberon.  Re-structured the model for Uranus in the same
+way we've done for Jupiter and Saturn, adding the satellites as links
+to the main box link and separating the planet globe as a separate
+child link.  The fact that Uranus orbits "on its side" (inclination of
+97.77 degrees) doesn't require any special handling since our code
+which sets the planet's orientation based upon the celestial
+co-ordinates of its north pole handles this in its stride.
+
+The directory for Uranus in the Git repository was re-organised in the
+same way as Jupiter and Saturn, with a main directory for the planet
+and subdirectories for its satellites.
+
+
+
 
 
 
@@ -1336,6 +1358,9 @@ Re-test set paths (particles) for Solar System.  It may work better
 now that we've de-coupled rotation from the root prim.  We could even
 have a special particle emitter prim, but that would be costly compared
 to its worth.
+
+
+Set satellites on/off Body1 Body2 ...
 
 
 Earth:
