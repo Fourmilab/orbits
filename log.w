@@ -1907,60 +1907,72 @@ Integrated the {\tt Makefile} into the web, with the usual trickery to
 target, under development, to delete everything generated from the web
 and force it to be re-generated.
 
-Made {\em le grand swoop} through all of the Solar System planets and 
-satellites and updated to the latest versions produced from the Web. In 
-the process, I fixes problems all over the place, including a number of 
-satellites which were still using scripts not generated from the web 
-and many with versions of {\tt flPlotLine} that did not support build 
-number checking.  All of this was fixed.  In the process of testing, I 
-discovered further problems with scaling of the Pluto model which were 
-corrected.  This is not, of course, the final pass through the Solar 
-System, but I think we're getting closer to be able to make some 
+Made {\em le grand swoop} through all of the Solar System planets and
+satellites and updated to the latest versions produced from the Web. In
+the process, I fixes problems all over the place, including a number of
+satellites which were still using scripts not generated from the web
+and many with versions of {\tt flPlotLine} that did not support build
+number checking.  All of this was fixed.  In the process of testing, I
+discovered further problems with scaling of the Pluto model which were
+corrected.  This is not, of course, the final pass through the Solar
+System, but I think we're getting closer to be able to make some
 pictures for the documentation and Marketplace listing.
 
-At this point, as far as I know, every object in the entire model is 
-running a script generated from the web.  If not entirely ready for the 
+At this point, as far as I know, every object in the entire model is
+running a script generated from the web.  If not entirely ready for the
 Grand Unification with the Git repository, we're getting closer.
 
 \date{2021 March 21}
 
-Changed the {\tt build} target in the {\tt Makefile} so it doesn't 
-generate the \LaTeX\ file and the {\tt view} target so it doesn't 
+Changed the {\tt build} target in the {\tt Makefile} so it doesn't
+generate the \LaTeX\ file and the {\tt view} target so it doesn't
 generate the program files; this will make things a bit faster.
 
-Added the {\tt -r} option to the run of Nuweb when generating the 
-documentation.  This automatically hyper-links all scrap references to 
+Added the {\tt -r} option to the run of Nuweb when generating the
+documentation.  This automatically hyper-links all scrap references to
 their definitions.
 
-The ``permanent'' modifier on the ``Orbit'' command wasn't working. The 
-updated version of the script installed in the cylinder prim used by 
-{\tt flPlotLine()} to trace lines was unconditionally setting {\tt 
-PRIM\_TEMP\_ON\_REZ}, which overrode the status of the prim in 
-inventory.  I modified the script to check for the presence of the 
-substring ``{\tt Permanent}'' in the name of the prim and, if it's 
-specified, leave its temporary/permanent status as set in the 
+The ``permanent'' modifier on the ``Orbit'' command wasn't working. The
+updated version of the script installed in the cylinder prim used by
+{\tt flPlotLine()} to trace lines was unconditionally setting {\tt
+PRIM\_TEMP\_ON\_REZ}, which overrode the status of the prim in
+inventory.  I modified the script to check for the presence of the
+substring ``{\tt Permanent}'' in the name of the prim and, if it's
+specified, leave its temporary/permanent status as set in the
 inventory.
 
-The ``Set Satellites'' command with no argument was not displaying 
-Pluto's satellite Charon because the mask it set for the satellites 
+The ``Set Satellites'' command with no argument was not displaying
+Pluto's satellite Charon because the mask it set for the satellites
 failed to set the $2^9$ bit---fixed.
 
-Specifying planets by number in the ``Set Satellites'' command didn't 
-work because the clever code that fixes the case of the first letter 
-mangled single character specifications due to the odd way {\tt 
-llGetSubString()} works when given start indices beyond the end of the 
+Specifying planets by number in the ``Set Satellites'' command didn't
+work because the clever code that fixes the case of the first letter
+mangled single character specifications due to the odd way {\tt
+llGetSubString()} works when given start indices beyond the end of the
 string.  I rewrote the code to avoid the problem.
 
-Once we move the development environment back into Git, the updating of 
-the build number and date would result in a large number of meaningless 
-Git transactions since on every build every would be updated to change 
-the build information.  I added the option to disable inclusion of the 
-build number until we're ready to start making release candidates and 
-want to re-establish configuration control over their contents.  The 
-build number is still incremented on every build to preserve 
-history---this simply skips embedding the build information in the 
-scripts.   This is explained by a comment before the inclusion of {\tt 
+Once we move the development environment back into Git, the updating of
+the build number and date would result in a large number of meaningless
+Git transactions since on every build every would be updated to change
+the build information.  I added the option to disable inclusion of the
+build number until we're ready to start making release candidates and
+want to re-establish configuration control over their contents.  The
+build number is still incremented on every build to preserve
+history---this simply skips embedding the build information in the
+scripts.   This is explained by a comment before the inclusion of {\tt
 build.w} in the Introduction chapter.
+
+\date{2021 March 22}
+
+Integrated the Literate Programming environment into the Git
+repository.  The original {\tt scripts} and {\tt logs} directories have
+been removed to an {\tt OBSOLETE} directory outside the repository.  A
+{\tt .gitignore} file excludes temporary files generated during the
+Nuweb build and subsequent generation steps from the repository, but we
+do track changes to generated from content of the web.
+
+
+
 
 \section{To Do}
 
